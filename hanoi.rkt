@@ -4,14 +4,11 @@
 ; By Jacob J. A. Koot
 ;=====================================================================================================
 ;
-; A GUI playing the game of The Tower of Hanoi. Implemented with racket, graphics/graphics, racket/gui
-; /base and syntax/transformer. Moves can be made manually but also automatically by the GUI. It has
-; buttons. A click on a button initiates an action. Modal dialogs are used to exchange information
-; between the GUI and the user. Documentation for the user can be made from module "hanoi.scrbl".
+; A GUI to play the game of The Tower of Hanoi. Moves can be made manually but also automatically by
+; the GUI. It has buttons. A click on a button initiates an action. Modal dialogs are used to exchange
+; information between the GUI and the user. Documentation can be made from module "hanoi.scrbl".
 ;
 ;=====================================================================================================
-; Syntaxes define and define-values are redefined such as to produce immutable variables only.
-; For mutable variables DEFINE and DEFINE-VALUES must be used. 
 
 #lang racket/base
 
@@ -70,9 +67,8 @@
 (provide tower-of-hanoi idle-limit)
 
 ;=====================================================================================================
-; Protection against mutation of variables that are not intended to be mutable. Use DEFINE and
-; DEFINE-VALUES for mutable variables. Syntaxes define and define-values are redefined such as to
-; produce immutable variables (a contradictio in terminis).
+; Syntaxes define and define-values are redefined such as to produce immutable variables only.
+; For mutable variables DEFINE and DEFINE-VALUES must be used. 
 
 (define-syntax (define stx)
   (syntax-case stx ()
@@ -98,7 +94,7 @@
            (define id (if (procedure? hidden) (procedure-rename hidden 'id) hidden)) ...)))))
 
 ;=====================================================================================================
-; Prologue, some macros.
+; Some macros.
 
 (define-syntax-rule ; Obvious.
   (in-reversed-range n)
@@ -110,13 +106,13 @@
     (define var value) ...
     (define the-list (list var ...))))
 
-(define-syntax-rule ; Defines values, each one, the first one excepted, depending on the previous one
-  (define-values-accumulative (var ...) first incrementor) ; according to an incrementor.
+(define-syntax-rule ; Defines values, each one, the first one excepted, depending on the previous one.
+  (define-values-accumulative (var ...) first make-next-one) ; according to an incrementor.
   (define-values (var ...)
     (apply values
       (for/fold ((val first) (vals '()) #:result (reverse vals))
-        ((index (in-list '(var ...))))
-        (values (incrementor val) (cons val vals))))))
+        ((index (in-range (length '(var ...)))))
+        (values (make-next-one val) (cons val vals))))))
 
 ;=====================================================================================================
 ; When the GUI is waiting for a mouse-click or a response to a modal dialog but the user does not act
@@ -139,9 +135,9 @@
     'parameter-idle-limit))
 
 ;=====================================================================================================
-; Variable last-compute is for action compute. The last answer of the user is memorized between
-; successive calls to the action and to procedure tower-of-hanoi. Therefore it is defined outside the
-; scope of procedure tower-of-hanoi.
+; Variable last-compute is for action compute. The last answer of the user to the question which
+; computation to make is memorized between successive calls to the action and to procedure
+; tower-of-hanoi. Therefore it is defined outside the scope of procedure tower-of-hanoi.
 
 (DEFINE last-compute "")
 
@@ -172,7 +168,8 @@
       (close-graphics))
 
     ;=================================================================================================
-    ; Initialization. Store the delayed values. Open graphics and the vieport. Draw the GUI.
+    ; Initialization. Open graphics and the viewport. Initialize variables viewport and disk-distr.
+    ; Draw the GUI.
 
     (define (initialize)
       ; Open graphics and the viewport.
@@ -200,7 +197,7 @@
 
     ;=================================================================================================
     ; Variables that can and must be defined in early stage.
-    ; Some of them are referred to in early stage below. Immutable.
+    ; Some of them are referred to in early stage below.
 
     (define block            20                                        )
     (define border           (* 3 block)                               )
@@ -246,7 +243,7 @@
     ;=================================================================================================
     ; Internal state. The following variables can be mutated while playing. Variables disk-distr and
     ; viewport are initialized by procedure initialize. After being assigned a value variable viewport
-    ; never is mutated. It cannot be assigned yet because this needs graphics to be open. Graphics is
+    ; never is mutated. It can not yet be assigned because this needs graphics to be open. Graphics is
     ; opened by procedure initialize which also will open and assign the viewport.
 
     (DEFINE height       max-height)
@@ -301,9 +298,9 @@
 
     ;=================================================================================================
     ; Buttons. They have procedure property. A button contains its name, its position, its region and
-    ; a boolean indicating whether or not it is enabled. Some buttons contain a content too. Procedure
-    ; proc-button2 always is called with a position if the action is in-button?. Procedures button1
-    ; and button-2 always receive a posn for argument pos cq arg when called with action in-button?.
+    ; a boolean indicating whether or not it is enabled. Some buttons contain a content too.
+    ; Procedure button1 always receive a posn for argument pos. Procedure button2 always receives a
+    ; posn for argument arg when called with action in-button?.
 
     (define (proc-button1 button action (pos #f))
       (case action ; For the procedure property of buttons without content.
@@ -345,7 +342,7 @@
          (region (make-region pos with-of-button height-of-button))
          (str-name (str-title-case (symbol->string name))))
         (cond
-          (content                                         ; Make button with    content.
+          (content                                         ; Make button with content.
             (make-button2 #t region pos str-name content)) ; Initially #t for field enabled.
           (else                                            ; Make button without content.
             (make-button1 #t region pos str-name)))))      ; Initially #t for field enabled.
@@ -390,7 +387,6 @@
       ((draw-rectangle viewport)        (make-posn x y) with-of-button height-of-button blue)
       ((draw-string viewport)
        (make-posn (+ x str-offset) (+ y height-of-button (- 2*str-offset))) str blue))
-
 
     ;=================================================================================================
     ; Some additional procedures drawing disks and pegs.
@@ -492,7 +488,6 @@
 
     ;=================================================================================================
     ; A region records the position and dimensions of objects whose clicks must be dispatched.
-    ; Regions for buttons are included in the buttons themselves.
 
     (struct region (pos width height)
       #:omit-define-syntaxes
@@ -552,9 +547,9 @@
       (define limit (idle-limit))
       (fprintf (current-error-port)
         "~nTower of Hanoi~n~
-     ~n  No activity during ~a. Game aborted.~
-     ~n  Use parameter idle-limit to increase the allowed~
-     ~n  idle time or use the Idle limit button.~n~n"
+         ~n  No activity during ~a. Game aborted.~
+         ~n  Use parameter idle-limit to increase the allowed~
+         ~n  idle time or use the Idle limit button.~n~n"
         (if (= limit 1) "1 minute" (format "~s minutes" limit)))
       (escape))
 
@@ -706,17 +701,8 @@
       ((clear-string viewport) pos-msg msg-str)
       (button-mode 'put-content 'manual))
 
-    (define buttons-for-action-mode   ; All buttons but reset, quit and cancel excepted.
-      (list
-        button-height
-        button-mode
-        button-delay
-        button-idle
-        button-setup
-        button-peg0
-        button-peg1
-        button-peg2
-        button-compute))
+    (define buttons-for-action-mode   ; All buttons, reset, quit and cancel excepted.
+      (remove* (list button-reset button-quit button-cancel) all-buttons))
 
     (define (prepare/finish-action-mode enable/disable)
       (enable/disable-buttons buttons-for-action-mode enable/disable))
@@ -774,7 +760,7 @@
         (short p-list 2)))
 
     ;=================================================================================================
-    ; Action long mode. Recursive.
+    ; Action long mode.
 
     (define (long)
       (action-reset)
@@ -802,7 +788,7 @@
         (long p-list 2)))
 
     ;=================================================================================================
-    ; Action circular mode. Recursive.
+    ; Action circular mode.
 
     (define (circular)
       (action-reset)
@@ -899,7 +885,7 @@
               (sleep sleeping-time) (doze-help exit) (loop)))
           (loop))))
 
-    ; Cancel the action when button-reset or button-cancel is clicked.
+    ; Capture and process clicks on buttons reset, cancel and quit.
 
     (define (doze-help exit)
       (define click (ready-mouse-click viewport))
@@ -966,8 +952,8 @@
             str-idle
             (format
               "Enter an exact positive integer number not exceeding\n~
-           ~s for the maximally allowed idle time in\n~
-           minutes. Do not enter more than 6 characters."
+               ~s for the maximally allowed idle time in\n~
+               minutes. Do not enter more than 6 characters."
               max-idle-minutes)
             #f	
             "10"	
@@ -994,13 +980,8 @@
     ; Action setup.
 
     (define buttons-for-action-setup
-      (list ; All buttons, reset, cancel, quit and pegs excepted.
-        button-height
-        button-mode
-        button-delay
-        button-idle
-        button-setup
-        button-compute))
+      (remove* (list button-reset button-cancel button-quit button-peg0 button-peg1 button-peg2)
+        all-buttons))
 
     (define (action-setup)
       (button-cancel 'enable)
@@ -1072,19 +1053,7 @@
           ((and click (button-cancel 'in-button? (mouse-click-posn click))) (kill-thread task) #f)
           (else (loop)))))
 
-    (define buttons-for-action-compute ; all buttons, cancel excepted.
-      (list
-        button-height
-        button-mode
-        button-delay
-        button-idle
-        button-reset
-        button-setup
-        button-quit
-        button-peg0
-        button-peg1
-        button-peg2
-        button-compute))
+    (define buttons-for-action-compute (remove button-cancel all-buttons))
 
     (DEFINE-VALUES (SLC h M m f t) (values #f #f #f #f #f #f)) ; Procedure validate-compute sets these
     (define namespace (make-base-namespace))
@@ -1313,7 +1282,7 @@
           (define 3^<h-1> (expt 3 h-1))
           (define 3^h (* 3 3^<h-1>))
           (define 3^<h-1>-1 (sub1 3^<h-1>))
-          (define <3^<h-1>-1>/2 (/ 3^<h-1>-1 2))
+          (define <3^<h-1>-1>/2 (quotient 3^<h-1>-1 2))
           (define m (modulo (+ M <3^<h-1>-1>/2) 3^h))
           (cond
             ((zero? m)                 (mover  h-1 r f t))
@@ -1348,7 +1317,7 @@
       (~r #:precision (list '= 3) (/ (- (current-inexact-milliseconds) clock) 1000)))
 
     ;=================================================================================================
-    ; The GUI.
+    ; Run the GUI.
 
     (tower-of-hanoi)))
 
