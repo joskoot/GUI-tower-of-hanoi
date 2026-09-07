@@ -6,7 +6,7 @@
      (only-in typed/racket Setof Natural Sequenceof Index))
    (for-syntax racket))
 
-@(define-for-syntax local #f)
+@(define-for-syntax local #t)
 
 @(printf "Directory: ~s~n" (path->string (current-directory)))
 
@@ -85,7 +85,7 @@ except while being moved it always is at a peg.
  @(hspace 3)@image["gui-pict.gif" #:scale 0.45]
 
  The user can instruct the GUI which action to take by clicking one of the blue buttons
- and by clicking nearby a peg. The actions are described in the sections to follow.
+ or nearby a peg. The actions are described in the sections to follow.
  A button can temporarily be disabled when not applicable during the current action,
  in which case it turns white.
  For some actions the GUI asks a question in a separate modal dialog.
