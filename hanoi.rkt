@@ -4,9 +4,10 @@
 ; By Jacob J. A. Koot
 ;=====================================================================================================
 ;
-; A GUI to play the game of The Tower of Hanoi. Moves can be made manually but also automatically by
-; the GUI. It has buttons. A click on a button initiates an action. Modal dialogs are used to exchange
-; information between the GUI and the user. Documentation can be made from module "hanoi.scrbl".
+; A GUI to play the game of The Tower of Hanoi. Moves can be made manually by clicking in the GUI but
+; also automatically by the GUI. It has buttons. A click on a button initiates an action. Modal
+; dialogs are used to exchange information between the GUI and the user. Module "hanoi.scrbl" produces
+; user documentation.
 ;
 ;=====================================================================================================
 
@@ -64,6 +65,8 @@
       (make-variable-like-transformer
         make-variable-like-transformer           ))))
 
+;=====================================================================================================
+
 (provide tower-of-hanoi idle-limit)
 
 ;=====================================================================================================
@@ -94,9 +97,8 @@
            (define id (if (procedure? hidden) (procedure-rename hidden 'id) hidden)) ...)))))
 
 ;=====================================================================================================
-; Some macros.
 
-(define-syntax-rule ; Obvious.
+(define-syntax-rule
   (in-reversed-range n)
   (in-range (sub1 n) -1 -1))
 
@@ -107,7 +109,7 @@
     (define the-list (list var ...))))
 
 (define-syntax-rule ; Defines values, each one, the first one excepted, depending on the previous one.
-  (define-values-accumulative (var ...) first make-next-one) ; according to an incrementor.
+  (define-values-accumulative (var ...) first make-next-one) ; according to a next one maker.
   (define-values (var ...)
     (apply values
       (for/fold ((val first) (vals '()) #:result (reverse vals))
@@ -196,8 +198,8 @@
       (action-reset))
 
     ;=================================================================================================
-    ; Variables that can and must be defined in early stage.
-    ; Some of them are referred to in early stage below.
+    ; Variables that can and some of which must be defined in early stage
+    ; because a variable cannot be referenced before it is defined.
 
     (define block            20                                        )
     (define border           (* 3 block)                               )
@@ -253,8 +255,8 @@
     (DEFINE move-count   0         )
     (DEFINE manual-count 0         )
     (DEFINE allow-intro  #t        )
-    (DEFINE disk-distr   'mutable  )
-    (DEFINE viewport     'delayed  )
+    (DEFINE disk-distr   'mutable  ) ; Yet to be initialized.
+    (DEFINE viewport     'delayed  ) ; Yet to be initialized.
 
     ;=================================================================================================
     ; Dispatch of mouse-clicks on buttons and clicks near pegs.
