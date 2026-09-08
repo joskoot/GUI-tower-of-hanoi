@@ -228,6 +228,7 @@
 ; Initialization. Initialize mutable variables. Open graphics and the viewport. Draw the GUI.
 
 (define (initialize ec)
+  (set! escape         ec)
   (set! height max-height)
   (set! delay       click)
   (set! msg-str        "")
@@ -235,7 +236,11 @@
   (set! move-count      0)
   (set! manual-count    0)
   (set! allow-intro    #t)
-  (set! escape         ec)
+  ; Reinitialize the buttons.
+  (button-height 'put-content  height     )
+  (button-mode   'put-content 'manual     )
+  (button-delay  'put-content  delay      )
+  (button-idle   'put-content (idle-limit))
   ; Open graphics and the viewport.
   (open-graphics)
   (set! viewport (open-viewport "Tower of Hanoi" vp-width vp-height))
