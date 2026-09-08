@@ -6,7 +6,7 @@
      (only-in typed/racket Setof Natural Sequenceof Index))
    (for-syntax racket))
 
-@(define-for-syntax local #t)
+@(define-for-syntax local #f)
 
 @(printf "Directory: ~s~n" (path->string (current-directory)))
 
