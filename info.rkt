@@ -4,5 +4,5 @@
 ; By Jacob J. A. Koot
 
 (define scribblings '(("hanoi.scrbl" ())))
-(define collection "hanoi")
-(define name "hanoi")
+(define collection "tower-of-hanoi")
+(define name "tower-of-hanoi")
