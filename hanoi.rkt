@@ -1,6 +1,6 @@
 
 ;=====================================================================================================
-; The Tower of Hanoi, a GUI.
+; The Tower of Hanoi
 ; By Jacob J. A. Koot
 ;=====================================================================================================
 ;
@@ -11,6 +11,12 @@
 ;=====================================================================================================
 
 #lang racket/base
+
+;=====================================================================================================
+
+(provide tower-of-hanoi idle-limit)
+
+;=====================================================================================================
 
 (require
   (only-in racket/base
@@ -65,20 +71,17 @@
         make-variable-like-transformer           ))))
 
 ;=====================================================================================================
-
-(provide tower-of-hanoi idle-limit)
-
-;=====================================================================================================
-; Syntaxes define and define-values are redefined such as to produce immutable variables only.
-; For mutable variables DEFINE and DEFINE-VALUES must be used. 
+; Syntaxes define and define-values are redefined such as to produce immutable variables only. For
+; mutable variables DEFINE and DEFINE-VALUES must be used. The value of an immutable variable can be
+; mutable, for example a mutable vector or a struct with mutable fields.
 
 (define-syntax (define stx)
   (syntax-case stx ()
     ((_ id value)
      (identifier? #'id)
      #'(begin
-         (DEFINE hidden value)
-         (define-syntax id (make-variable-like-transformer #'hidden))))
+         (DEFINE var value)
+         (define-syntax id (make-variable-like-transformer #'var))))
     ((_ (id arg ...       ) body ...)
      #'(define id (procedure-rename (λ (arg ...           ) body ...) 'id)))
     ((_ (id arg . rest-arg) body ...)
@@ -90,10 +93,10 @@
 (define-syntax (define-values stx)
   (syntax-case stx ()
     ((_ (id ...) expr)
-     (with-syntax (((hidden ...) (generate-temporaries #'(id ...))))
+     (with-syntax (((var ...) (generate-temporaries #'(id ...))))
        #'(begin
-           (DEFINE-VALUES (hidden ...) expr)
-           (define id (if (procedure? hidden) (procedure-rename hidden 'id) hidden)) ...)))))
+           (DEFINE-VALUES (var ...) expr)
+           (define id (if (procedure? var) (procedure-rename var 'id) var)) ...)))))
 
 ;=====================================================================================================
 
@@ -101,7 +104,7 @@
   (in-reversed-range n)
   (in-range (sub1 n) -1 -1))
 
-; Defines values with in addition a list of these values.
+; Define values with in addition a list of these values.
 
 (define-syntax-rule
   (define-with-list the-list (var value) ...)
@@ -109,16 +112,16 @@
     (define var value) ...
     (define the-list (list var ...))))
 
-; Defines values accumulatively, each one, the first one excepted, made from the previous one by a
-; procedure.
+; Defines values accumulatively, each one, the first one excepted, made from the previous one by an
+; accumulation procedure.
 
 (define-syntax-rule 
-  (define-values-accumulative (var ...) first make-next-one)
+  (define-values-accumulative (var ...) first accumulation-procedure)
   (define-values (var ...)
     (apply values
       (for/fold ((val first) (vals '()) #:result (reverse vals))
         ((index (in-range (length '(var ...)))))
-        (values (make-next-one val) (cons val vals))))))
+        (values (accumulation-procedure val) (cons val vals))))))
 
 ;=====================================================================================================
 ; When the GUI is waiting for a mouse-click or a response to a modal dialog but the user does not act
@@ -139,6 +142,49 @@
             "\n  Exact positive integer ~s<=time<=~s wanted.\n  Given ~s"
             min-idle-minutes  max-idle-minutes time))))
     'parameter-idle-limit))
+
+;=====================================================================================================
+; Timing out after exceeding the idle-limit.
+
+(define-syntax (time-out stx)
+  (syntax-case stx ()
+    ((_ #f expr) #'(time-out-proc #f (λ () expr)))
+    ((_ #t expr) #'(time-out-proc #t (λ () expr)))
+    ((_    expr) #'(time-out-proc #f (λ () expr)))))
+
+(define (time-out-abort)
+  (define limit (idle-limit))
+  (fprintf (current-error-port)
+    "\nTower of Hanoi\n~
+     No activity during ~a. Game aborted.\n~
+     Use parameter idle-limit to increase the allowed\n~
+     idle time or use the Idle limit button.\n\n"
+    (if (= limit 1) "1 minute" (format "~s minutes" limit)))
+  (escape))
+
+(define (time-out-proc warn? thunk)
+  (when warn?
+    ((draw-string viewport) pos-warn1 str-warn1 red)
+    ((draw-string viewport) pos-warn2 str-warn2 red))
+  (define custodian (make-custodian))
+  (define result-box (box #f))
+  (define in-time?
+    (parameterize ((current-custodian custodian))
+      (define dialog-eventspace (make-eventspace))
+      (define task
+        (parameterize ((current-eventspace dialog-eventspace))
+          (thread (λ () (set-box! result-box (call-with-values thunk list))))))
+      (sync/timeout (* (idle-limit) 60) task)))   ; Minutes to seconds.
+  (cond
+    ((or (not in-time?) (not (unbox result-box))) ; Maximum idle time exceeded. Abort.
+     (custodian-shutdown-all custodian)
+     (time-out-abort))
+    (else                                         ; Answer received within maximum idle time.
+      (custodian-shutdown-all custodian)          ; Return the result, possibly a multiple value.
+      (when warn?
+        ((clear-string viewport) pos-warn1 str-warn1)
+        ((clear-string viewport) pos-warn2 str-warn2))
+      (apply values (unbox result-box)))))
 
 ;===============================================================00000=================================
 ; Main procedure.
@@ -161,6 +207,24 @@
   (close-graphics))
 
 ;=====================================================================================================
+; Internal state. The following variables can be mutated while playing. They are initialized by
+; procedure initialize. After being assigned their value variables viewport and escape never are
+; mutated. The viewport can not yet be assigned because this needs graphics to be open. Graphics is
+; opened by procedure initialize which also will open and assign the viewport.
+
+(DEFINE height       'mutable)
+(DEFINE delay        'mutable)
+(DEFINE msg-str      'mutable)
+(DEFINE clock        'mutable)
+(DEFINE move-count   'mutable)
+(DEFINE manual-count 'mutable)
+(DEFINE allow-intro  'mutable)
+(DEFINE disk-distr   'mutable)
+(DEFINE last-compute ""      ) ; Not reinitialized. Memorized between succesive calls to the GUI.
+(DEFINE escape       'delayed)
+(DEFINE viewport     'delayed)
+
+;=====================================================================================================
 ; Initialization. Initialize mutable variables. Open graphics and the viewport. Draw the GUI.
 
 (define (initialize ec)
@@ -169,6 +233,7 @@
   (set! msg-str        "")
   (set! clock           0)
   (set! move-count      0)
+  (set! manual-count    0)
   (set! allow-intro    #t)
   (set! escape         ec)
   ; Open graphics and the viewport.
@@ -238,24 +303,6 @@
   (str-long         " long "      )
   (str-circular     " circular "  )
   (str-compute      " Compute "   ))
-
-;=====================================================================================================
-; Internal state. The following variables can be mutated while playing. They are initialized by
-; procedure initialize. After being assigned their value variables viewport and escape never are
-; mutated. The viewport can not yet be assigned because this needs graphics to be open. Graphics is
-; opened by procedure initialize which also will open and assign the viewport.
-
-(DEFINE height       'mutable)
-(DEFINE delay        'mutable)
-(DEFINE msg-str      'mutable)
-(DEFINE clock        'mutable)
-(DEFINE move-count   'mutable)
-(DEFINE manual-count 'mutable)
-(DEFINE allow-intro  'mutable)
-(DEFINE last-compute 'mutable)
-(DEFINE disk-distr   'mutable)
-(DEFINE escape       'delayed)
-(DEFINE viewport     'delayed)
 
 ;=====================================================================================================
 ; Dispatch of mouse-clicks.
@@ -421,8 +468,6 @@
    (make-posn (- (peg-x p) 2) (+ y block -3))
    (format "~s" d) white))
 
-(define (mark-disk d h p) (draw-disk d h p red))
-
 (define (remove-disk d h p)
   (define width (disk-width d))
   (define center (+ (peg-x p) (/ peg-width 2)))
@@ -432,6 +477,8 @@
   ((clear-solid-rectangle viewport) pos width disk-height)
   ((draw-solid-rectangle viewport)
    (make-posn (- center (/ peg-width 2)) y) peg-width disk-height green))
+
+(define (mark-disk d h p) (draw-disk d h p red))
 
 ;=====================================================================================================
 ; Computation of the dimensions of buttons. These depend on the sizes of the texts to be put into the
@@ -537,58 +584,15 @@
   (button-compute (make-button 'compute      pos-compute            )))
 
 ;=====================================================================================================
-; Timing out after exceeding the idle-limit.
-
-(define-syntax (time-out stx)
-  (syntax-case stx ()
-    ((_ #f expr) #'(time-out-proc #f (λ () expr)))
-    ((_ #t expr) #'(time-out-proc #t (λ () expr)))
-    ((_    expr) #'(time-out-proc #f (λ () expr)))))
-
-(define (time-out-abort)
-  (define limit (idle-limit))
-  (fprintf (current-error-port)
-    "\nTower of Hanoi\n~
-     No activity during ~a. Game aborted.\n~
-     Use parameter idle-limit to increase the allowed\n~
-     idle time or use the Idle limit button.\n\n"
-    (if (= limit 1) "1 minute" (format "~s minutes" limit)))
-  (escape))
-
-(define (time-out-proc warn? thunk)
-  (when warn?
-    ((draw-string viewport) pos-warn1 str-warn1 red)
-    ((draw-string viewport) pos-warn2 str-warn2 red))
-  (define custodian (make-custodian))
-  (define result-box (box #f))
-  (define in-time?
-    (parameterize ((current-custodian custodian))
-      (define dialog-eventspace (make-eventspace))
-      (define task
-        (parameterize ((current-eventspace dialog-eventspace))
-          (thread (λ () (set-box! result-box (call-with-values thunk list))))))
-      (sync/timeout (* (idle-limit) 60) task)))   ; Minutes to seconds.
-  (cond
-    ((or (not in-time?) (not (unbox result-box))) ; Maximum idle time exceeded. Abort.
-     (custodian-shutdown-all custodian)
-     (time-out-abort))
-    (else                                         ; Answer received within maximum idle time.
-      (custodian-shutdown-all custodian)          ; Return the result, possibly a multiple value.
-      (when warn?
-        ((clear-string viewport) pos-warn1 str-warn1)
-        ((clear-string viewport) pos-warn2 str-warn2))
-      (apply values (unbox result-box)))))
-
-;=====================================================================================================
-; When validating a modal dialog that returns a string. Data must be read from the string, possibly
+; When validating a modal dialog that returns a string, data must be read from the string, possibly
 ; followed by some computation. We don't want the GUI to crash when the user provides wrong data. The
 ; validator simply must reject the answer given by the user. Therefore the following handler. 
 
 (define-syntax-rule
   (catch-exn expr ...)
-  (with-handlers ((exn:fail? catch)) expr ...))
+  (with-handlers ((exn:fail? catch-exn:fail)) expr ...))
 
-(define (catch e) #f)
+(define (catch-exn:fail e) #f)
 
 ;=====================================================================================================
 ; Action manual.
@@ -740,7 +744,7 @@
   (prepare/finish-action-mode 'enable))
 
 ;=====================================================================================================
-; Action short mode. Recursive.
+; Action short mode.
 
 (define (short)
   (reset-time-and-move-counter)
@@ -908,11 +912,11 @@
     (else
       (define starting-time (current-inexact-milliseconds))
       (define finish-time (+ starting-time (* 1000 t)))
-      (define sleeping-time (min 0.25 (/ delay 1.01)))
-      (define (loop) ; Periodically sleep and check for time out.
+      (define sleeping-time (min 0.25 (/ delay 1.01))) ; Periodically sleep somewhat shorter then the
+      (define (doze-loop)                              ; and check for reset, cancel anmd quit.
         (when (< (current-inexact-milliseconds) finish-time)
-          (sleep sleeping-time) (doze-help exit) (loop)))
-      (loop))))
+          (sleep sleeping-time) (doze-help exit) (doze-loop)))
+      (doze-loop))))
 
 ; Capture and process clicks on buttons reset, cancel and quit.
 
@@ -1033,9 +1037,9 @@
       (button-peg0   (action-setup2 d 0) (action-setup1 (cdr disks)))
       (button-peg1   (action-setup2 d 1) (action-setup1 (cdr disks)))
       (button-peg2   (action-setup2 d 2) (action-setup1 (cdr disks)))
-      (button-reset  (clear-msg)         (action-reset))
-      (button-cancel (clear-msg)         (action-reset))
-      (button-quit   (action-quit) (action-setup1 (cdr disks)))
+      (button-reset  (clear-msg        ) (action-reset             ))
+      (button-cancel (clear-msg        ) (action-reset             ))
+      (button-quit   (action-quit      ) (action-setup1 (cdr disks)))
       (else
         (define p (dispatch-peg pos))
         (cond
