@@ -236,11 +236,6 @@
   (set! move-count      0)
   (set! manual-count    0)
   (set! allow-intro    #t)
-  ; Reinitialize the buttons.
-  (button-height 'put-content  height     )
-  (button-mode   'put-content 'manual     )
-  (button-delay  'put-content  delay      )
-  (button-idle   'put-content (idle-limit))
   ; Open graphics and the viewport.
   (open-graphics)
   (set! viewport (open-viewport "Tower of Hanoi" vp-width vp-height))
@@ -251,6 +246,11 @@
     (when (button2? button) (draw-button-content button (button2-content button))))
   ; Disable button cancel.
   (button-cancel 'disable)
+  ; Reinitialize the buttons.
+  (button-height 'put-content  height     )
+  (button-mode   'put-content 'manual     )
+  (button-delay  'put-content  delay      )
+  (button-idle   'put-content (idle-limit))
   ; Draw the girder on which the pegs will be mounted.
   ((draw-solid-rectangle viewport) pos-girder (- vp-width (* 2 border)) block gray)
   (for ((p (in-range 0 3)))
