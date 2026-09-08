@@ -39,7 +39,7 @@
 @(define-syntax (Defmodule stx)
    (if local
      #'(defmodule "hanoi.rkt" #:packages ())
-     #'(defmodule hanoi/hanoi #:packages ())))
+     #'(defmodule tower-of-hanoi/hanoi #:packages ())))
 
 @(define (reset-Interaction*) (set! evaller (make-evaller)))
 @(define-syntax (ignore stx) #'(void))
