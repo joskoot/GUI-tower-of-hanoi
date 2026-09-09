@@ -60,7 +60,7 @@
     (current-eventspace     current-eventspace   ))
   (for-syntax
     (only-in racket/base
-      (#%app                #%app                )
+      (#%app                %app                  )
       (syntax               syntax               )
       (syntax-case          syntax-case          )
       (with-syntax          with-syntax          )
@@ -78,14 +78,14 @@
 (define-syntax (define stx)
   (syntax-case stx ()
     ((_ id value)
-     (identifier? #'id)
+     (%app identifier? #'id)
      #'(begin
          (DEFINE var value)
-         (define-syntax id (make-variable-like-transformer #'var))))
+         (define-syntax id (%app make-variable-like-transformer #'var))))
     ((_ (id arg ...       ) body ...)
      #'(define id (procedure-rename (λ (arg ...           ) body ...) 'id)))
     ((_ (id arg . rest-arg) body ...)
-     (identifier? #'rest-arg)
+     (%app identifier? #'rest-arg)
      #'(define id (procedure-rename (λ (arg     . rest-arg) body ...) 'id)))
     ((_ (id arg ... . rest-arg) body ...)
      #'(define id (procedure-rename (λ (arg ... . rest-arg) body ...) 'id)))))
@@ -93,7 +93,7 @@
 (define-syntax (define-values stx)
   (syntax-case stx ()
     ((_ (id ...) expr)
-     (with-syntax (((var ...) (generate-temporaries #'(id ...))))
+     (with-syntax (((var ...) (%app generate-temporaries #'(id ...))))
        #'(begin
            (DEFINE-VALUES (var ...) expr)
            (define id (if (procedure? var) (procedure-rename var 'id) var)) ...)))))
@@ -257,7 +257,7 @@
     (define str (format "Peg ~s" p))
     (define size (car ((get-string-size viewport) str)))
     ((draw-string viewport)
-     (posn-add (make-posn (peg-x p) (- vp-height border))
+     (posn-add (make-posn (peg-x p) (- vp-height border 3))
        (- (/ size 2))
        (- (/ str-offset 2))) str white))
   ; Procedure action-reset draws the pegs and places all disks at the left peg.
