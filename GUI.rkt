@@ -918,7 +918,7 @@
       (define starting-time (current-inexact-milliseconds))
       (define finish-time (+ starting-time (* 1000 t)))
       (define sleeping-time (min 0.25 (/ delay 1.01))) ; Periodically sleep somewhat shorter then the
-      (define (doze-loop)                              ; and check for reset, cancel anmd quit.
+      (define (doze-loop)                              ; and check for reset, cancel and quit.
         (when (< (current-inexact-milliseconds) finish-time)
           (sleep sleeping-time) (doze-help exit) (doze-loop)))
       (doze-loop))))
