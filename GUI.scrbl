@@ -225,9 +225,9 @@ Used to make moves manually and for @seclink["Setup"]{setup} of a distribution o
 
 @subsection[#:tag "Compute"]{Compute}
 
-Calculates a move and the resulting distribution of disks
-for the shortest path, the longest path, or the circular path,
-where all three start and end with all disks on one pin.
+Calculates a move of the shortest, longest or circular path
+starting and finishing with all disks on one pin.
+The distribution of disks obtained after the move is computed too.
 Opens two dialog boxes.
 The first one is for information only and can be suppressed.
 The second one wants the following data:
@@ -247,7 +247,7 @@ The second one wants the following data:
 If @tt{m} not already is a an exact positive integer,
 it is assumed to be an expression and is evaluated with procedure @racket[eval] in a
 @seclink["Namespaces" #:doc '(lib "scribblings/reference/reference.scrbl")]{base-namespace}
-to which a mutable variable h is added with value @tt{h}.
+to which variable h is added with value @tt{h}.
 Moves are counted starting from 1.
 The move number @tt{m} and height @tt{h} must satisfy the following rules:
 
@@ -270,6 +270,11 @@ For a circular path the des@element['roman ?-]ti@element['roman ?-]na@element['r
 determines the order of visited distributions with all disks at one peg: starting peg,
 des@element['roman ?-]ti@element['roman ?-]na@element['roman ?-]tion peg,
 the remaining third peg and finally back to the starting peg.
+For example:
+
+@inset{@tt{C 10000 (* 2 (expt 3 (sub1 h))) 0 1}}
+
+After this move all 10000 disks are at peg 2.
 
 @note{The computation of the resulting distribution of disks can be parallelized.
  Code with @seclink["futures" #:doc '(lib "scribblings/reference/reference.scrbl")]{futures}
