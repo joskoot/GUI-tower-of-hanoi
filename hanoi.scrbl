@@ -1,12 +1,12 @@
 #lang scribble/manual
 @;----------------------------------------------------------------------------------------------------
 @(require scribble/base scribble/core scribble/eval racket
-   #; (only-in "hanoi.rkt" vp-width vp-height)
-   (for-label "hanoi.rkt" racket
+   #; (only-in "GUI.rkt" vp-width vp-height)
+   (for-label "GUI.rkt" racket
      (only-in typed/racket Setof Natural Sequenceof Index))
    (for-syntax racket))
 
-@(define-for-syntax local #f)
+@(define-for-syntax local #t)
 
 @(printf "Directory: ~s~n" (path->string (current-directory)))
 
@@ -38,8 +38,8 @@
 
 @(define-syntax (Defmodule stx)
    (if local
-     #'(defmodule "hanoi.rkt" #:packages ())
-     #'(defmodule tower-of-hanoi/hanoi #:packages ())))
+     #'(defmodule "GUI.rkt" #:packages ())
+     #'(defmodule tower-of-hanoi/GUI #:packages ())))
 
 @(define (reset-Interaction*) (set! evaller (make-evaller)))
 @(define-syntax (ignore stx) #'(void))
