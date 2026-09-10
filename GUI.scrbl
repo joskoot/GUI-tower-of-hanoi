@@ -19,8 +19,7 @@
        #:lang
        '(begin
           (require racket/base)
-          (print-reader-abbreviations #f)
-          (define (hex str) (read (open-input-string str)))))
+          (print-reader-abbreviations #f)))
      x ...))
 
 @(define-syntax-rule
@@ -33,8 +32,7 @@
      #:lang
      '(begin
         (require racket)
-        (print-reader-abbreviations #f)
-        (define (hex str) (read (open-input-string str))))))
+        (print-reader-abbreviations #f))))
 
 @(define-syntax (Defmodule stx)
    (if local
