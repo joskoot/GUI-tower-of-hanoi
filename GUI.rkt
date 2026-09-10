@@ -6,7 +6,7 @@
 ;
 ; A GUI to play the game of The Tower of Hanoi. Moves can be made manually but also automatically by
 ; the GUI. It has buttons. A click on a button initiates an action. Modal dialogs are used to exchange
-; information between the GUI and the user. Module "hanoi.scrbl" produces user documentation.
+; information between the GUI and the user. Module "GUI.scrbl" produces user documentation.
 ;
 ;=====================================================================================================
 
