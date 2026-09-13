@@ -266,7 +266,7 @@ The move number @tt{m} and height @tt{h} must satisfy the following inequalities
 The data provided by the user are memorised between successive compute actions and between
 successive calls to procedure @racket[tower-of-hanoi].
 There is no limit to the number of disks, but a very large height, say 1000000 disks,
-can take some time up to a minute, involving exact numeric operations on very large numbers,
+can take some time, involving exact numeric operations on very large numbers,
 about 10@↑[@(format "~s" (order-of-magnitude (expt 3 1000000)))].
 @nb{For reasonable} heights, say up to 10000 disks,
 the computation is fast because it is not recursive in the sense that
