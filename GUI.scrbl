@@ -74,9 +74,9 @@ except while being moved it always is at a peg.
 @section[#:style '(unnumbered)]{How to play}
 
 @defproc[(tower-of-hanoi) void?]{
- Opens a GUI for playing the game of the
+ Opens a GUI (graphical user interface) for playing the game of the
  @hyperlink["https://en.wikipedia.org/wiki/Tower_of_Hanoi"]{Tower of Hanoi}.
- It looks like this:
+ @nb{It looks} like this:
 
  @elemtag["figure"]
  
@@ -252,9 +252,9 @@ The second one wants the following data:
 If @tt{m} not already is a an exact positive integer,
 it is assumed to be an expression and is evaluated with procedure @racket[eval] in a
 @seclink["Namespaces" #:doc '(lib "scribblings/reference/reference.scrbl")]{base-namespace}
-to which variable h is added with value @tt{h}.
+to which variable @tt{h} is added.
 Moves are counted starting from 1.
-The move number @tt{m} and height @tt{h} must satisfy the following rules:
+The move number @tt{m} and height @tt{h} must satisfy the following inequalities:
 
 @inset{@tabular[
  (list
