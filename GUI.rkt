@@ -27,8 +27,6 @@
     (infinite?              infinite?            )
     (range                  range                )
     (processor-count        processor-count      )
-    (future                 future               )
-    (touch                  touch                )
     (~r                     ~r                   ))
   (only-in graphics/graphics
     (open-graphics          open-graphics        )
@@ -60,7 +58,7 @@
     (current-eventspace     current-eventspace   ))
   (for-syntax
     (only-in racket/base
-      (#%app                %app                  )
+      (#%app                %app                 )
       (syntax               syntax               )
       (syntax-case          syntax-case          )
       (with-syntax          with-syntax          )
@@ -73,7 +71,8 @@
 ;=====================================================================================================
 ; Syntaxes define and define-values are redefined such as to produce immutable variables only. For
 ; mutable variables DEFINE and DEFINE-VALUES must be used. The value of an immutable variable can be
-; mutable, for example a mutable vector or a struct with mutable fields.
+; mutable, for example a mutable vector or a struct with mutable fields while the variable containing
+; the vector or structure is immutable.
 
 (define-syntax (define stx)
   (syntax-case stx ()
@@ -152,6 +151,28 @@
     ((_ #t expr) #'(time-out-proc #t (λ () expr)))
     ((_    expr) #'(time-out-proc #f (λ () expr)))))
 
+(define (time-out-proc warn? thunk)
+  (when warn?
+    ((draw-string viewport) pos-warn1 str-warn1 red)
+    ((draw-string viewport) pos-warn2 str-warn2 red))
+  (define result-box (box #f))
+  (parameterize ((current-eventspace (make-eventspace)))
+    (define thrd
+      (thread
+        (λ () (set-box! result-box (call-with-values thunk list)))
+        #:pool 'own
+        #:keep 'results))
+    (sync/timeout (* (idle-limit) 60) thrd) ; Minutes to seconds.
+    (define result (unbox result-box))
+    (kill-thread thrd)
+    (cond
+      (result                               ; Answer received within maximum idle time.
+        (when warn?                         
+          ((clear-string viewport) pos-warn1 str-warn1)
+          ((clear-string viewport) pos-warn2 str-warn2))
+        (apply values result))              ; Return the result, possibly a multiple value.
+      (else (time-out-abort)))))            ; Maximum idle time exceeded. Abort.
+
 (define (time-out-abort)
   (define limit (idle-limit))
   (fprintf (current-error-port)
@@ -161,30 +182,6 @@
      idle time or use the Idle limit button.\n\n"
     (if (= limit 1) "1 minute" (format "~s minutes" limit)))
   (escape))
-
-(define (time-out-proc warn? thunk)
-  (when warn?
-    ((draw-string viewport) pos-warn1 str-warn1 red)
-    ((draw-string viewport) pos-warn2 str-warn2 red))
-  (define custodian (make-custodian))
-  (define result-box (box #f))
-  (define in-time?
-    (parameterize ((current-custodian custodian))
-      (define dialog-eventspace (make-eventspace))
-      (define task
-        (parameterize ((current-eventspace dialog-eventspace))
-          (thread (λ () (set-box! result-box (call-with-values thunk list))))))
-      (sync/timeout (* (idle-limit) 60) task)))   ; Minutes to seconds.
-  (cond
-    ((or (not in-time?) (not (unbox result-box))) ; Maximum idle time exceeded. Abort.
-     (custodian-shutdown-all custodian)
-     (time-out-abort))
-    (else                                         ; Answer received within maximum idle time.
-      (custodian-shutdown-all custodian)          ; Return the result, possibly a multiple value.
-      (when warn?
-        ((clear-string viewport) pos-warn1 str-warn1)
-        ((clear-string viewport) pos-warn2 str-warn2))
-      (apply values (unbox result-box)))))
 
 ;===============================================================00000=================================
 ; Main procedure.
@@ -225,9 +222,11 @@
 (DEFINE viewport     'delayed)
 
 ;=====================================================================================================
-; Initialization. Initialize mutable variables. Open graphics and the viewport. Draw the GUI.
+; Initialize or reinitialize mutable variables and buttons with content. Open graphics and the
+; viewport. Draw the GUI.
 
 (define (initialize ec)
+  ; Initialize or reinitialize mutable variables.
   (set! escape         ec)
   (set! height max-height)
   (set! delay       click)
@@ -239,14 +238,13 @@
   ; Open graphics and the viewport.
   (open-graphics)
   (set! viewport (open-viewport "Tower of Hanoi" vp-width vp-height))
-  ; Reinitialize the buttons with content.
+  ; Initialize or reinitialize the buttons with content.
   (button-height 'put-content  height     )
   (button-mode   'put-content 'manual     )
   (button-delay  'put-content  delay      )
   (button-idle   'put-content (idle-limit))
   ; Draw the buttons.
   (for ((button (in-list all-buttons)))
-    (define pos (button1-pos button))
     (draw-button button)
     (when (button2? button) (draw-button-content button (button2-content button))))
   ; Disable button cancel.
@@ -261,37 +259,37 @@
        (- (/ size 2))
        (- (/ str-offset 2))) str white))
   ; Procedure action-reset draws the pegs and places all disks at the left peg.
-  ; Also initializes variable disk-distr.
+  ; Also initializes or reinitializes variable disk-distr.
   (action-reset))
 
 ;=====================================================================================================
-; Variables that can and some of which must be defined in early stage because a variable cannot be
-; referenced before it is defined.
+; Variables that can and some of which must be defined in early stage because they will be referenced
+; and a variable cannot be referenced before it is defined.
 
-(define block            20                                        )
-(define border           (* 3 block)                               )
-(define max-height       10                                        )
-(define disk-height      block                                     )
-(define max-tower-height (* max-height disk-height)                )
-(define str-offset       4                                         )
-(define 2*str-offset     (* 2 str-offset)                          )
-(define min-disk-width   (* 3 block)                               )
-(define disk-width-incr  block                                     )
-(define (disk-width d)   (+ min-disk-width (* 2 d disk-width-incr)))
-(define max-disk-width   (disk-width (sub1 max-height))            )
-(define peg-top          (* 2 block)                               )
-(define peg-width        4                                         )
-(define click            'click                                    )
-(define str-click        (symbol->string click)                    )
-(define str-warn1        " A dialog is waiting."                   )
-(define str-warn2        " Look for it when you don't see it."     )
-(define manual           'manual                                   )
-(define white            (make-rgb 1.0 1.0 1.0)                    )
-(define black            (make-rgb 0.0 0.0 0.0)                    )
-(define gray             (make-rgb 0.6 0.6 0.6)                    )
-(define red              (make-rgb 1.0 0.0 0.0)                    )
-(define green            (make-rgb 0.0 0.8 0.0)                    )
-(define blue             (make-rgb 0.0 0.0 1.0)                    )
+(define block             20                                        )
+(define border             (* 3 block)                               )
+(define max-height        10                                        )
+(define disk-height       block                                     )
+(define max-tower-height  (* max-height disk-height)                )
+(define str-offset        4                                         )
+(define 2*str-offset      (* 2 str-offset)                          )
+(define min-disk-width    (* 3 block)                               )
+(define disk-width-incr   block                                     )
+(define (disk-width d)    (+ min-disk-width (* 2 d disk-width-incr)))
+(define max-disk-width    (disk-width (sub1 max-height))            )
+(define peg-top           (* 2 block)                               )
+(define peg-width         4                                         )
+(define click             'click                                    )
+(define str-click         (symbol->string click)                    )
+(define str-warn1         " A dialog is waiting."                   )
+(define str-warn2         " Look for it when you don't see it."     )
+(define manual            'manual                                   )
+(define white             (make-rgb 1.0 1.0 1.0)                    )
+(define black             (make-rgb 0.0 0.0 0.0)                    )
+(define gray              (make-rgb 0.6 0.6 0.6)                    )
+(define red               (make-rgb 1.0 0.0 0.0)                    )
+(define green             (make-rgb 0.0 0.8 0.0)                    )
+(define blue              (make-rgb 0.0 0.0 1.0)                    )
 
 (define-with-list strings
   (str-height       " Height "    )
@@ -317,30 +315,34 @@
     ((_ pos (button action ...) ... (else else-action ...))
      #'(let ((p pos))
          (cond
-           ((button 'in-button? p) action ...) ...
+           ((button 'in-button? p) action ...)
+           ...
            (else else-action ...))))
     ((_ pos (button action ...) ...)
      #'(let ((p pos))
          (cond
-           ((button 'in-button? p) action ...) ...)))))
+           ((button 'in-button? p) action ...)
+           ...)))))
 
 (define (dispatch pos)
   (dispatch-button pos
-    (button-height  (action-height  ) (main))
-    (button-mode    (action-mode    ) (main))
-    (button-delay   (action-delay   ) (main))
-    (button-idle    (action-idle    ) (main))
-    (button-reset   (action-reset   ) (main))
-    (button-setup   (action-setup   ) (main))
-    (button-peg0    (action-manual 0) (main))
-    (button-peg1    (action-manual 1) (main))
-    (button-peg2    (action-manual 2) (main))
-    (button-compute (action-compute ) (main))
-    (button-quit    (action-quit    ) (main))
+    (button-height  (action-height  ))
+    (button-mode    (action-mode    ))
+    (button-delay   (action-delay   ))
+    (button-idle    (action-idle    ))
+    (button-reset   (action-reset   ))
+    (button-setup   (action-setup   ))
+    (button-peg0    (action-manual 0))
+    (button-peg1    (action-manual 1))
+    (button-peg2    (action-manual 2))
+    (button-compute (action-compute ))
+    (button-quit    (action-quit    ))
     (else
       (define p (dispatch-peg pos))
-      (when p (action-manual p))
-      (main))))
+      (when   p (action-manual p))))
+  ; Always keep running the GUI after the action has been done.
+  ; Notice that we do not get here if action-quit has aborted the GUI.
+  (main))
 
 (define (dispatch-peg pos)
   (cond
@@ -351,13 +353,10 @@
 
 ;=====================================================================================================
 ; Buttons. They have procedure property. A button contains its name, its position, its region and a
-; boolean indicating whether or not it is enabled. Some buttons contain a content too. Procedures
-; button1 and button2 always receive a posn for argument pos cq arg when called with action
-; in-button?.
+; boolean indicating whether or not it is enabled. Some buttons contain a content too. When called
+; with action in-button? procedures button1 and button2 receive a posn for argument pos cq arg.
 
-; For the procedure property of buttons without content.
-
-(define (proc-button1 button action (pos #f))
+(define (proc-button1 button action (pos #f)) ; For the procedure property of buttons without content.
   (case action
     ((in-button?)
      (in-region? pos (button1-region button)))
@@ -370,9 +369,7 @@
      (set-button1-enabled?! button #t)
      (draw-button button))))
 
-; For the procedure property of buttons with content.
-
-(define (proc-button2 button action (arg #f))
+(define (proc-button2 button action (arg #f)) ; For the procedure property of buttons with content.
   (case action
     ((get-content)
      (button2-content button))
@@ -381,29 +378,26 @@
      (draw-button-content  button arg))
     (else (proc-button1 button action arg))))
 
-(struct button1 ((enabled? #:mutable) region pos name)
+(struct button1 ((enabled? #:mutable) region pos name) ; Without content.
   #:property prop:procedure proc-button1
   #:constructor-name make-button1)
 
-(struct button2 button1 ((content #:mutable))
+(struct button2 button1 ((content #:mutable))          ; With content.
   #:property prop:procedure proc-button2
   #:omit-define-syntaxes
   #:constructor-name make-button2)
 
-; Constructor make-button is called either without content or with a true content, never false.
-; Hence, when content is #f, a button without content must be made, else one with content.
-
 (define (make-button name position (content #f))
+  ; Constructor make-button is called either without content or with a true content, never false.
+  ; Hence, when content is #f, a button without content must be made, else one with content.
   (let*
     ((pos position)
      (region (make-region pos with-of-button height-of-button))
      (str-name (str-title-case (symbol->string name))))
     (cond
-      (content                                         ; Make button with content.
-        (make-button2 #t region pos str-name content)) ; Initially #t for field enabled.
-      (else                                            ; Make button without content.
-        (make-button1 #t region pos str-name)))))      ; Initially #t for field enabled.
-
+      (content (make-button2 #t region pos str-name content)) ; Initially #t for field enabled.
+      (else    (make-button1 #t region pos str-name)))))      ; Initially #t for field enabled.
+             
 (define (str-title-case str)
   (define lst (string->list str))
   (list->string (cons (char-upcase (car lst)) (cdr lst))))
@@ -487,7 +481,7 @@
 
 ;=====================================================================================================
 ; Computation of the dimensions of buttons. These depend on the sizes of the texts to be put into the
-; buttons. The sizes are given by procedure get-string-size which requires a viewport or pixmap.
+; buttons. The sizes are determined by procedure get-string-size which requires a viewport or pixmap.
 ; A temporary pixmap is used. This requires graphics, which is temporarily opened too. Both will be
 ; closed after finishing the computation.
 
@@ -536,10 +530,10 @@
   (make-posn border border)
   (λ (pos) (posn-add pos button-w+b 0)))
 
-(define pos-msg    (posn-add  pos-idle    button-w+b (- (* 2 height-of-button) str-offset)))
-(define pos-warn1  (posn-add  pos-compute button-w+b (-      height-of-button  str-offset)))
-(define pos-warn2  (posn-add  pos-warn1   0 block)                                         )
-(define pos-girder (make-posn border      (- vp-height border block))                      )
+(define pos-msg    (posn-add  pos-idle    button-w+b (- (* 2 height-of-button) str-offset       )))
+(define pos-warn1  (posn-add  pos-compute button-w+b (-   (+ height-of-button  str-offset) block)))
+(define pos-warn2  (posn-add  pos-warn1   0          block                                       ))
+(define pos-girder (make-posn border      (- vp-height border block))                             )
 
 ;=====================================================================================================
 ; A region records the position and dimensions of objects whose clicks must be dispatched.
@@ -557,14 +551,14 @@
   (define y-max (+ y-min (region-height region)))
   (and (<= x-min x x-max) (<= y-min y y-max)))
 
-(define-values (region-peg0 region-peg1 region-peg2)
+(define-values (region-peg2 region-peg1 region-peg0)
   (apply values
     (for/fold
       ((pos
          (make-posn
            (+ border block)
            (- vp-height border block peg-height)))
-       (regions '()) #:result (reverse regions))
+       (regions '()) #:result regions)
       ((n (in-range 3)))
       (values
         (posn-add pos (+ max-disk-width border) 0)
@@ -640,20 +634,20 @@
     (else
       (define dest-peg-list-of-disks (vector-ref disk-distr to-peg))
       (cond
-        ((< d (size-of-top-disk to-peg))          ; Is the move allowed?
-         (remove-disk d h from-peg)               ; Yes it is. Move it.
+        ((< d (size-of-top-disk to-peg)) ; Is the move allowed?
+         (remove-disk d h from-peg)      ; Yes it is. Move it.
          (vector-set! disk-distr from-peg (cdr (vector-ref disk-distr from-peg)))
          (vector-set! disk-distr to-peg (cons d dest-peg-list-of-disks))
          (draw-disk d (length dest-peg-list-of-disks) to-peg)
          (increment-manual-count))
-        (else                                     ; The move is not allowed. Unmark the
-          (draw-disk d h from-peg)))))            ; selected disk and ignore the mouse-click
+        (else                            ; The move is not allowed. Unmark the
+          (draw-disk d h from-peg)))))   ; selected disk and ignore the mouse-click
   (button-cancel 'disable))
 
 (define (size-of-top-disk p)
   (define peg (vector-ref disk-distr p))
   (if (null? peg)
-    max-height                                    ; Size of a virtual top disk at an empty peg.
+    max-height                           ; Size of a virtual top disk at an empty peg.
     (car peg)))
 
 ;=====================================================================================================
@@ -667,9 +661,10 @@
 (define (clear-manual-count) ((clear-string viewport) pos-msg msg-str))
 
 (define (draw-manual-count)
-  (clear-manual-count)
-  (set! msg-str (format "Manual moves ~s" manual-count))
-  (when (> manual-count 0)((draw-string viewport) pos-msg msg-str)))
+  (when (> manual-count 0)
+    (clear-manual-count)
+    (set! msg-str (format "Manual moves ~s" manual-count))
+    ((draw-string viewport) pos-msg msg-str)))
 
 (define (reset-manual-count) (clear-manual-count) (set! manual-count 0))
 
@@ -754,7 +749,7 @@
 (define (short)
   (reset-time-and-move-counter)
   (let/ec ec
-    ; The escape allows procedure move-disk to stop the action.
+    ; The exit allows procedure move-disk to stop the action.
     (define (exit) (clear-msg) (ec))
     (define p-list
       (for*/list
@@ -780,7 +775,7 @@
   (action-reset)
   (reset-time-and-move-counter)
   (let/ec ec
-    ; The escape allows procedure move-disk to stop the action.
+    ; The exit allows procedure move-disk to stop the action.
     (define (exit) (clear-msg) (ec))
     (define p-list
       (for*/list
@@ -808,7 +803,7 @@
   (action-reset)
   (reset-time-and-move-counter)
   (let/ec ec
-    ; The escape allows procedure move-disk to stop the action.
+    ; The exit allows procedure move-disk to stop the action.
     (define (exit) (clear-msg) (ec))
     (define (longest-circular-path h f t)
       (unless (zero? h)
@@ -906,9 +901,9 @@
   (define p (and pos (mouse-click-posn pos)))
   (when p
     (dispatch-button p
-      (button-reset  (action-reset) (exit     ) #f)
-      (button-cancel                (exit     ) #f)
-      (button-quit                  (action-quit) #f)
+      (button-reset  (action-reset) (exit) #f)
+      (button-cancel                (exit) #f)
+      (button-quit   (action-quit )        #f)
       (else #t))))
 
 (define (doze t exit) ; t in seconds. Like sleep, but with time out.
@@ -917,7 +912,7 @@
     (else
       (define starting-time (current-inexact-milliseconds))
       (define finish-time (+ starting-time (* 1000 t)))
-      (define sleeping-time (min 0.25 (/ delay 1.01))) ; Periodically sleep somewhat shorter then the
+      (define sleeping-time (min 0.25 (/ delay 1.01))) ; Periodically sleep somewhat shorter
       (define (doze-loop)                              ; and check for reset, cancel and quit.
         (when (< (current-inexact-milliseconds) finish-time)
           (sleep sleeping-time) (doze-help exit) (doze-loop)))
@@ -930,8 +925,8 @@
   (when click
     (dispatch-button (mouse-click-posn click)
       (button-reset  (action-reset) (exit))
-      (button-cancel (exit))
-      (button-quit   (action-quit)))))
+      (button-cancel                (exit))
+      (button-quit   (action-quit )      ))))
 
 ;=====================================================================================================
 ; Action delay.
@@ -1065,7 +1060,7 @@
       (message-box/custom "Quit"
         "Ok to quit?"
         "yes"
-        "no"
+        "cancel"
         #f
         #f
         '(caution default=2))))
@@ -1078,17 +1073,22 @@
   (syntax-case stx ()
     ((_ expr) #'(accept-cancel-proc (λ () expr)))))
 
+(DEFINE running-threads #f)
+
 (define (accept-cancel-proc thunk)
-  (define custodian (make-custodian))
   (define result-box (box #f))
-  (define task (thread (λ () (set-box! result-box (call-with-values thunk list)))))
+  (define task
+    (thread (λ () (set-box! result-box (call-with-values thunk list)))))
   (let loop ()
     (sleep 1)
     (define click (ready-mouse-click viewport))
     (define results (unbox result-box))
     (cond
       ((unbox result-box))
-      ((and click (button-cancel 'in-button? (mouse-click-posn click))) (kill-thread task) #f)
+      ((and click (button-cancel 'in-button? (mouse-click-posn click)))
+       (for-each kill-thread running-threads)
+       (kill-thread task)
+       #f)
       (else (loop)))))
 
 (define buttons-for-action-compute (remove button-cancel all-buttons))
@@ -1227,23 +1227,29 @@
 (define-syntax (posi// stx)
   (syntax-case stx ()
     ((_ m h f t posi)
-     #'(let ()
-         (define futures
+     #'(let () 
+         (define threads
            (for/list ((r (in-list (ranges h))))
-             (future
+             (thread
                (λ ()
                  (for/list ((d (in-range (car r) (cadr r))))
-                   (posi m h d f t))))))
-         (apply append (map touch futures))))
+                   (posi m h d f t)))
+               #:pool 'own
+               #:keep 'results)))
+         (set! running-threads threads)
+         (apply append (map thread-wait threads))))
     ((_ h (m f t posi))
-     #'(let ()
-         (define futures
+     #'(let () 
+         (define threads
            (for/list ((r (in-list (ranges h))))
-             (future
+             (thread
                (λ ()
                  (for/list ((d (in-range (car r) (cadr r))))
-                   (posi m d f t))))))
-         (apply append (map touch futures))))))
+                   (posi m d f t)))
+               #:pool 'own
+               #:keep 'results)))
+         (set! running-threads threads)
+         (apply append (map thread-wait threads))))))
 
 ;=====================================================================================================
 ; Action compute short.

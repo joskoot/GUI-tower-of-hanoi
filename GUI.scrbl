@@ -136,6 +136,13 @@ without passing any distribution of disks more than once.
 In fact every legal distribution of disks is visited.
 @nb{The sequence} of moves is uniquely defined.
 
+@ignore{
+ @note{Starting from an arbitrary distribution of disks and moving all of them to the same peg with as
+  many moves as possible without traversing a distribution more than once, there always is at least
+  one way to do that, possibly less than @tt{3@↑{h}@[minus]1} moves,
+  but from some distributions there are two distinct ways with the same number of moves,
+  one moving the largest disk to be moved twice and one with moving that disk once.}}
+
 When the circular mode is selected, first all disks are placed at the peg at the left and
 subsequently moved such as to pass exactly once along every legal distribution of disks and finishing
 with all disks at the peg started from.
@@ -259,8 +266,8 @@ The move number @tt{m} and height @tt{h} must satisfy the following rules:
 The data provided by the user are memorised between successive compute actions and between
 successive calls to procedure @racket[tower-of-hanoi].
 There is no limit to the number of disks, but a very large height, say 1000000 disks,
-can take much time, involving exact numeric operations on very large numbers, about
-10@↑[@(format "~s" (order-of-magnitude (expt 3 1000000)))].
+can take some time up to a minute, involving exact numeric operations on very large numbers,
+about 10@↑[@(format "~s" (order-of-magnitude (expt 3 1000000)))].
 @nb{For reasonable} heights, say up to 10000 disks,
 the computation is fast because it is not recursive in the sense that
 it does not depend on preceding moves or solutions with less disks.
@@ -274,10 +281,8 @@ For example:
 
 After this move all 10000 disks are at peg 2.
 
-@note{The computation of the resulting distribution of disks can be parallelized.
- Code with @seclink["futures" #:doc '(lib "scribblings/reference/reference.scrbl")]{futures}
- for this pupose is already present in the source code and gives correct answers,
- but does not parallelize yet.}
+@note{The computation of the resulting distribution of disks is parallelized
+ by means of threads.}
 
 @section[#:style '(unnumbered)]{Appendix}
 
