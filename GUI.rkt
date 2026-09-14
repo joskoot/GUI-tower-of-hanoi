@@ -181,9 +181,10 @@
      Use parameter idle-limit to increase the allowed\n~
      idle time or use the Idle limit button.\n\n"
     (if (= limit 1) "1 minute" (format "~s minutes" limit)))
+  (custodian-shutdown-all (current-custodian))
   (escape))
 
-;===============================================================00000=================================
+;=====================================================================================================
 ; Main procedure.
   
 (define (tower-of-hanoi)
@@ -195,7 +196,7 @@
 (define (GUI)
   (let/ec ec
     (initialize ec)
-    (main)))
+    (parameterize ((current-custodian (make-custodian))) (main))))
 
 (define (main) (dispatch (mouse-click-posn (time-out (get-mouse-click viewport)))))
 
@@ -257,7 +258,8 @@
     ((draw-string viewport)
      (posn-add (make-posn (peg-x p) (- vp-height border 3))
        (- (/ size 2))
-       (- (/ str-offset 2))) str white))
+       (- (/ str-offset 2)))
+     str white))
   ; Procedure action-reset draws the pegs and places all disks at the left peg.
   ; Also initializes or reinitializes variable disk-distr.
   (action-reset))
@@ -597,14 +599,14 @@
 ; Action manual.
 
 (define (action-manual from-peg)
-  (define peg-disks (vector-ref disk-distr from-peg))
-  (unless (null? peg-disks)
-    (define d (car peg-disks))
+  (define from-peg-disks (vector-ref disk-distr from-peg))
+  (unless (null? from-peg-disks)
+    (define d (car from-peg-disks))
     (when ; Act only if the selected disk can be moved, else do nothing.
       (or
         (< d (size-of-top-disk (modulo (+ 1 from-peg) 3)))
         (< d (size-of-top-disk (modulo (+ 2 from-peg) 3))))
-      (define h (sub1 (length peg-disks)))
+      (define h (sub1 (length from-peg-disks)))
       (mark-disk d h from-peg)
       (action-manual1 d h from-peg))))
 
@@ -751,22 +753,22 @@
   (let/ec ec
     ; The exit allows procedure move-disk to stop the action.
     (define (exit) (clear-msg) (ec))
-    (define p-list
+    (define distr
       (for*/list
         ((d (in-reversed-range height))
          (p (in-range 3))
          #:when (member d (vector-ref disk-distr p)))
         p))
-    (define (short conf dest)
+    (define (short distr dest)
       (cond
-        ((null? conf))
-        ((= (car conf) dest) (short (cdr conf) dest))
+        ((null? distr))
+        ((= (car distr) dest) (short (cdr distr) dest))
         (else
-          (define new-conf (- 3 (car conf) dest))
-          (short (cdr conf) new-conf)
-          (move-disk (car conf) dest exit)
-          (short (make-list (length (cdr conf)) new-conf) dest))))
-    (short p-list 2)))
+          (define new-conf (- 3 (car distr) dest))
+          (short (cdr distr) new-conf)
+          (move-disk (car distr) dest exit)
+          (short (make-list (length (cdr distr)) new-conf) dest))))
+    (short distr 2)))
 
 ;=====================================================================================================
 ; Action long mode.
