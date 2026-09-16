@@ -92,12 +92,12 @@ except while being moved it always is at a peg.
  the height 494 pixels,
  title bar and border not included.}
 
-@defparam[idle-limit time (and/c exact-positive-integer? (<=/c 100000)) #:value 10]{
+@defparam[idle-limit time (and/c exact-positive-integer? (<=/c 10080)) #:value 10]{
  When the GUI is waiting for a mouseclick or an answer to a modal dialog
  but receives no response within @racket[time] minutes, the GUI aborts.
  Within the GUI the limit can be adjusted by means of
  the @seclink["Idle limit"]{idle limit} button.
- The maximum limit of 100000 minutes is almost 70 days.}
+ 10080 minutes is a week.}
 
 @subsection[#:tag "Height"]{Height}
 
@@ -181,8 +181,8 @@ Opens a dialog to adjust the idle limit in minutes.
 When the GUI is waiting for a mouse@element['roman ?-]click or an answer to a dialog but
 does not receive such click or answer within idle limit minutes, it halts.
 The initial idle limit is collected from parameter @racket[idle-limit].
-The limit must be an exact positive integer less than or equal to 100000.
-This limit is almost 70 days.
+The limit must be an exact positive integer less than or equal to 10080,
+which taken as minutes is @nb{a week}.
 
 @subsection[#:tag "Reset"]{Reset}
 
