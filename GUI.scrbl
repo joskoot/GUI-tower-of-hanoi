@@ -110,7 +110,7 @@ Initially the height is 10.
 Opens a modal dialog for selection of the mode, which is manual, short, long or circular.
 Initially the mode is manual.
 This mode is not included in the dialog.
-The GUI starts in mode manual and actions short,
+The GUI starts in manual mode and actions short,
 long and circular return to manual mode after completion or @seclink["Cancel"]{cancelation}.
 
 In manual mode the user is supposed to click the @seclink["Peg n"]{peg} button
@@ -127,7 +127,7 @@ In short mode the disks are moved by the GUI to the peg at the right
 with the least possible number of moves,
 at most @tt{2@↑{h}-1} moves, where @tt{h} is the @seclink["Height"]{height}.
 Exactly @tt{2@↑{h}-1} moves when starting with all disks at @seclink["Peg n"]{peg} 0 or 1.
-The shortest way always is uniquely defined.
+The shortest way is uniquely defined for every distribution of disks to start with. 
 
 When the long mode is selected, first all disks are placed at the peg at the left and
 subsequently moved to the peg at the right with the largest number of moves possible
@@ -282,7 +282,8 @@ For example:
 After this move all 10000 disks are at peg 2.
 
 @note{The computation of the resulting distribution of disks is parallelized
- by means of threads.}
+ by means of threads. On my computer with 6 cores and 12 logical processors
+ running at almost 5 GHz the computation lasts roughly 1 ms per disk.}
 
 @section[#:style '(unnumbered)]{Appendix}
 

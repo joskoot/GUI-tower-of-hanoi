@@ -25,7 +25,7 @@
 ; For mutable variables DEFINE and DEFINE-VALUES must be used. Syntax DEFINE accepts forms of the form
 ; (DEFINE id expr) only, where id is an identifier. The value of an immutable variable can be mutable,
 ; for example a mutable vector or a structure with mutable fields while the variable containing the
-; vector or structure is immutable.
+; vector or structure is immutable. ("immutable variable" is a contradictio in terminis ☺)
 
 (define-for-syntax (extract-id head)
   (syntax-case head ()
@@ -48,32 +48,20 @@
      #'(define id (procedure-remame (λ (arg ... . rest-arg) body ...) 'id)))
     ((_ head body ...)
      (with-syntax ((id (extract-id #'head)))
-       #'(define id
-           (let ()
-             (DEFINE head body ...)
-             (procedure-rename id 'id)))))))
+       #'(define id (let () (DEF head body ...) id))))))
 
 (define-syntax (define-values stx)
   (syntax-case stx ()
     ((_ (id ...) expr)
+     (let ((ids (syntax->list #'(id ...))))
+       (and
+         (andmap identifier? ids)
+         (let ((dupid (check-duplicate-identifier ids)))
+           (or (not dupid) (raise-syntax-error 'define-values "duplicate identifier" stx dupid)))))
      (with-syntax (((var ...) (generate-temporaries #'(id ...))))
        #'(begin
            (DEF-VALUES (var ...) expr)
            (define id var) ...)))))
-
-(DEF mutable-variables '(mutable-variables))
-
-(define (print-mutable-variables)
-  (define (writer var) (printf "  ~s~n" var))
-  (let*
-    ((mutable-variables (sort mutable-variables symbol<?))
-     (other-vars (remove* internal-state mutable-variables))
-     (internal-state-vars (remove* other-vars mutable-variables)))
-    (printf "~nMutable variables of internal state~n~n")
-    (for-each writer internal-state-vars)
-    (printf "~nOther mutable variables~n~n")
-    (for-each writer other-vars)
-    (newline)))
 
 (define-syntax (DEFINE stx)
   (syntax-case stx ()
@@ -88,8 +76,20 @@
 (define-syntax (DEFINE-VALUES stx)
   (syntax-case stx ()
     ((_ (id ...) expr)
+     (andmap identifier? (syntax->list #'(id ...)))
      #'(begin (set! mutable-variables (append '(id ...) mutable-variables))
          (DEF-VALUES (id ...) expr)))))
+
+(DEF mutable-variables '(mutable-variables))
+
+(define (print-mutable-variables)
+  (define (writer var) (printf "  ~s~n" var))
+  (define other-vars (remove* internal-state mutable-variables))
+  (printf "~nMutable variables of internal state~n~n")
+  (for-each writer (sort internal-state symbol<?))
+  (printf "~nOther mutable variables~n~n")
+  (for-each writer (sort other-vars symbol<?))
+  (newline))
 
 ;====================================================================================================
 
@@ -100,13 +100,15 @@
 ; Define values with in addition a list of these values.
 
 (define-syntax-rule
-  (define-with-list the-list (var value) ...)
+  (define-values-with-list-of-values the-list (var value) ...)
   (begin
     (define var value) ...
     (define the-list (list var ...))))
 
+; Define values with in addition a list of the identifiers.
+
 (define-syntax-rule
-  (DEFINE-WITH-LIST the-list (var value) ...)
+  (define-values-with-list-of-ids the-list (var value) ...)
   (begin
     (DEFINE var value) ...
     (define the-list '(var ...))))
@@ -208,7 +210,7 @@
 ; assign the viewport. The top-custodian is shut down during termination. A shut down custodian cannot
 ; no longer be used. Therefore the top-custodian must be reinitialized too.
 
-(DEFINE-WITH-LIST internal-state
+(define-values-with-list-of-ids internal-state
   (height        'mutable)
   (delay         'mutable)
   (str-count     'mutable)
@@ -298,7 +300,7 @@
 (define green            (make-rgb 0.0 0.8 0.0)                    )
 (define blue             (make-rgb 0.0 0.0 1.0)                    )
 
-(define-with-list strings
+(define-values-with-list-of-values strings
   (str-height     " Height "    )
   (str-mode       " Mode "      )
   (str-delay      " Delay "     )
@@ -573,7 +575,7 @@
 ; Now define the buttons. Contents are mutable, but the initial contents always are the same, with
 ; exception of that of button-idle, whose initial value is taken from parameter idle-limit.
 
-(define-with-list all-buttons
+(define-values-with-list-of-values all-buttons
   (button-height  (make-button 'Height       posn-height max-height  ))
   (button-mode    (make-button 'Mode         posn-mode   manual      ))
   (button-delay   (make-button 'Delay        posn-delay  click       ))
