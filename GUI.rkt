@@ -12,7 +12,7 @@
 
 #lang racket
 
-(provide tower-of-hanoi idle-limit)
+(provide tower-of-hanoi idle-limit print-mutable-variables)
 
 (require
   graphics/graphics
@@ -62,7 +62,18 @@
            (define id var) ...)))))
 
 (DEF mutable-variables '(mutable-variables))
-(define (list-mutable-variables) (sort mutable-variables symbol<?))
+
+(define (print-mutable-variables)
+  (define (writer var) (printf "  ~s~n" var))
+  (let*
+    ((mutable-variables (sort mutable-variables symbol<?))
+     (other-vars (remove* internal-state mutable-variables))
+     (internal-state-vars (remove* other-vars mutable-variables)))
+    (printf "~nMutable variables of internal state~n~n")
+    (for-each writer internal-state-vars)
+    (printf "~nOther mutable variables~n~n")
+    (for-each writer other-vars)
+    (newline)))
 
 (define-syntax (DEFINE stx)
   (syntax-case stx ()
@@ -94,6 +105,12 @@
     (define var value) ...
     (define the-list (list var ...))))
 
+(define-syntax-rule
+  (DEFINE-WITH-LIST the-list (var value) ...)
+  (begin
+    (DEFINE var value) ...
+    (define the-list '(var ...))))
+
 ; Defines values accumulatively, each one, the first one excepted, made from the previous one by an
 ; make-next procedure.
 
@@ -110,7 +127,7 @@
 ; act or answer within a certain time, the GUI aborts. The limit is hold in parameter idle-limit.
 
 (define default-idle-minutes 10)
-(define max-idle-minutes  10080) ; A full week (60×24×7 = 10080)
+(define max-idle-minutes  10080) ; A full week (7×24×60 = 10080)
 (define min-idle-minutes      1)
 
 (define idle-limit
@@ -185,27 +202,30 @@
 
 ;=====================================================================================================
 ; Internal state. The following variables can be mutated while playing. They are initialized or
-; reinitialized by procedure initialize. Variables viewport and escape never are mutated after they
-; have received their value. The viewport can not yet be assigned because this needs graphics to be
-; open. Graphics is opened by procedure initialize which also will open and assign the viewport.
-; The top-custodian is shut down during termination. A shut down custodian cannot no longer be used.
-; Therefore the top-custodian is reinitialized each time the GUI is called.
+; reinitialized by procedure initialize. Variables escape, viewport and top-custodian never are
+; mutated after they have received their value. The viewport can not yet be assigned because this
+; needs graphics to be open. Graphics is opened by procedure initialize which also will open and
+; assign the viewport. The top-custodian is shut down during termination. A shut down custodian cannot
+; no longer be used. Therefore the top-custodian must be reinitialized too.
 
-(DEFINE height        'mutable)
-(DEFINE delay         'mutable)
-(DEFINE str-count     'mutable)
-(DEFINE clock         'mutable)
-(DEFINE move-count    'mutable)
-(DEFINE manual-count  'mutable)
-(DEFINE allow-intro   'mutable)
-(DEFINE disk-distr    'mutable)
-(DEFINE last-compute  'mutable)
-(DEFINE escape        'delayed)
-(DEFINE viewport      'delayed)
-(DEFINE top-custodian 'delayed)
+(DEFINE-WITH-LIST internal-state
+  (height        'mutable)
+  (delay         'mutable)
+  (str-count     'mutable)
+  (clock         'mutable)
+  (move-count    'mutable)
+  (manual-count  'mutable)
+  (allow-intro   'mutable)
+  (disk-distr    'mutable)
+  (last-compute  'mutable)
+  (escape        'delayed)
+  (viewport      'delayed)
+  (top-custodian 'delayed))
 
 ;=====================================================================================================
-; Timing out after exceeding the idle-limit.
+; Timing out after exceeding the idle-limit. When the GUI is waiting for a mouse-click or a response
+; to a modal dialog but the user does not act or answer within a certain time, the GUI aborts.
+; The limit is hold in parameter idle-limit.
 
 (define-syntax (time-out stx)
   (syntax-case stx ()
@@ -412,7 +432,7 @@
    (make-posn (+ x 2*str-offset) (+ y button-hght (- 2*str-offset))) str blue))
 
 ;=====================================================================================================
-; Procedures drawing disks and pegs.
+; Procedures drawing disks, pegs and the girder.
 
 (define (draw-pegs)
   (for ((p (in-range 3)))
@@ -569,8 +589,9 @@
 
 ;=====================================================================================================
 ; When validating a modal dialog that returns a string, data must be read from the string, possibly
-; followed by some computation. We don't want the GUI to crash when the user provides wrong data.
-; The validator simply must reject the answer given by the user. Therefore the following handler.
+; followed by some computation. We don't want the GUI to crash when the user provides wrong or even
+; unreadable data. The validator simply must reject the answer given by the user. Therefore the
+; following handler.
 
 (define-syntax-rule
   (catch-exn expr ...)
@@ -604,10 +625,10 @@
       (draw-disk d h from-peg)
       (button-cancel 'disable)
       (reset-manual-count))
-    (else                                         ; Disk not selected by means of a peg button.
-      (define dest-peg (dispatch-peg pos))        ; May be by a click near a peg.
+    (else                                         ; Disk not selected by means of a peg button, or
+      (define dest-peg (dispatch-peg pos))        ; canceled. May be seleceted by a click near a peg.
       (cond                                       ; Use manual2 to move the disk to peg dest.
-        (dest-peg (action-manual2 d h from-peg dest-peg))
+        (dest-peg (action-manual2 d h from-peg dest-peg)) ; Yes, destination peg selected.
         (else
           (button-cancel 'disable)                ; Something else than a peg selected.
           (draw-disk d h from-peg)                ; Unmark the selected disk and
@@ -668,7 +689,7 @@
         str-height
         (format
           "How many disks do you want?\n~
-             At least one, at most ten.")
+           At least one, at most ten.")
         #f
         "10"
         '(disallow-invalid)
@@ -933,9 +954,9 @@
         str-delay
         (format
           "Enter a non-negative real number for the\n~
-             approximate delay in seconds between moves\n~
-             or leave the default 'click' as it is.\n~
-             Do not enter more than 6 characters")
+           approximate delay in seconds between moves\n~
+           or leave the default 'click' as it is.\n~
+           Do not enter more than 6 characters")
         #f	
         str-click	
         '(disallow-invalid) 	
@@ -968,8 +989,8 @@
         str-idle-limit
         (format
           "Enter an exact positive integer number not exceeding ~s\n~
-             for the maximally allowed idle time in minutes.\n~
-             Do not enter more than 5 characters."
+           for the maximally allowed idle time in minutes.\n~
+           Do not enter more than 5 characters."
           max-idle-minutes)
         #f	
         "10"	
@@ -1113,22 +1134,22 @@
           (message+check-box str-compute
             (format
               "Computation of move m:\n  ~
-                   which disk is moved,\n  ~
-                   from which peg it is taken,\n  ~
-                   onto which peg it put\n  ~
-                   and the resulting distribution of disks\n\n~
-                 You will be asked for the following details:\n\n  ~
-                   mode: capital letter: S for short, L for long and C for circular.\n  ~
-                   height: number of disks (can be greater than 9).\n  ~
-                   move: move number, starting from 1.\n  ~
-                   from: starting peg 0, 1 or 2.\n  ~
-                   onto: destination-peg 0, 1 or 2, but t≠f.\n\n~
-                 The move can be any expression for a positive exact integer\n~
-                 number not greater than allowed for the mode and height.\n~
-                 In the expression letter h can be used for the height\n\n  ~
-                   For mode S: (<= 1 move (sub1 (expt 2 height)))\n  ~
-                   For mode L: (<= 1 move (sub1 (expt 3 height)))\n  ~
-                   For mode C: (<= 1 move (expt 3 height))")
+                 which disk is moved,\n  ~
+                 from which peg it is taken,\n  ~
+                 onto which peg it put\n  ~
+                 and the resulting distribution of disks\n\n~
+               You will be asked for the following details:\n\n  ~
+                 mode: capital letter: S for short, L for long and C for circular.\n  ~
+                 height: number of disks (can be greater than 9).\n  ~
+                 move: move number, starting from 1.\n  ~
+                 from: starting peg 0, 1 or 2.\n  ~
+                 onto: destination-peg 0, 1 or 2, but t≠f.\n\n~
+               The move can be any expression for a positive exact integer\n~
+               number not greater than allowed for the mode and height.\n~
+               In the expression letter h can be used for the height\n\n  ~
+                 For mode S: (<= 1 move (sub1 (expt 2 height)))\n  ~
+                 For mode L: (<= 1 move (sub1 (expt 3 height)))\n  ~
+                 For mode C: (<= 1 move (expt 3 height))")
             " Do not show this message next time."
             #f
             '(ok-cancel no-icon))))
@@ -1181,16 +1202,16 @@
               (if (eq? SLC 'C)
                 (format
                   "Results for move ~a of path C with ~s disks from peg ~s ~
-                     via peg ~s and peg ~s back to peg ~s\n\n~
-                     Disk ~s from peg ~s to peg ~s.\n~
-                     Resulting distribution:\n~
-                     Positions of disks in order of increasing size:\n~a\n"
+                   via peg ~s and peg ~s back to peg ~s\n\n~
+                   Disk ~s from peg ~s to peg ~s.\n~
+                   Resulting distribution:\n~
+                   Positions of disks in order of increasing size:\n~a\n"
                   M h f t (- 3 f t) f d ff tt distr-str)
                 (format
                   "Results for move ~a of path ~a from peg ~s to peg ~s with ~s disks.\n\n~
-                     Disk ~s from peg ~s onto peg ~s.\n~
-                     Resulting distribution:\n~
-                     Positions of disks in order of increasing size:\n~a\n"
+                   Disk ~s from peg ~s onto peg ~s.\n~
+                   Resulting distribution:\n~
+                   Positions of disks in order of increasing size:\n~a\n"
                   M SLC f t h d ff tt distr-str))
               #f
               '(ok no-icon))))))))
@@ -1340,7 +1361,7 @@
 
 ;====================================================================================================
 
-; (list-mutable-variables)
+; (print-mutable-variables)
 
 ;====================================================================================================
 ; The end
