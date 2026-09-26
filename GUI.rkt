@@ -17,26 +17,28 @@
 (require
   graphics/graphics
   racket/gui/base
-  (only-in racket/base (define DEFINE) (define-values DEFINE-VALUES))
+  (only-in racket/base (define DEF) (define-values DEF-VALUES))
   (for-syntax syntax/transformer))
 
 ;=====================================================================================================
 ; Syntaxes define and define-values are redefined such as to produce immutable variables only.
-; For mutable variables DEFINE and DEFINE-VALUES must be used. The value of an immutable variable
-; can be mutable, for example a mutable vector or a structure with mutable fields while the variable
-; containing the vector or structure is immutable.
+; For mutable variables DEFINE and DEFINE-VALUES must be used. Syntax DEFINE accepts forms of the form
+; (DEFINE id expr) only, where id is an identifier. The value of an immutable variable can be mutable,
+; for example a mutable vector or a structure with mutable fields while the variable containing the
+; vector or structure is immutable.
+
+(define-for-syntax (extract-id head)
+  (syntax-case head ()
+    ((head arg ...)
+     (if (identifier? #'head) #'head
+       (extract-id #'head)))))
 
 (define-syntax (define stx)
-  (define (extract-id head)
-    (syntax-case head ()
-      ((head arg ...)
-       (if (identifier? #'head) #'head
-         (extract-id #'head)))))
   (syntax-case stx ()
     ((_ id value)
      (identifier? #'id)
      #'(begin
-         (DEFINE var value)
+         (DEF var value)
          (define-syntax id (make-variable-like-transformer #'var))))
     ((_ (id arg ...           ) body ...)
      (     identifier? #'id)
@@ -56,8 +58,27 @@
     ((_ (id ...) expr)
      (with-syntax (((var ...) (generate-temporaries #'(id ...))))
        #'(begin
-           (DEFINE-VALUES (var ...) expr)
+           (DEF-VALUES (var ...) expr)
            (define id var) ...)))))
+
+(DEF mutable-variables '(mutable-variables))
+(define (list-mutable-variables) (sort mutable-variables symbol<?))
+
+(define-syntax (DEFINE stx)
+  (syntax-case stx ()
+    ((_ id value)
+     (identifier? #'id)
+     #'(begin (set! mutable-variables (cons 'id mutable-variables))
+         (DEF id value)))
+    (_ (raise-syntax-error 'DEFINE
+         "\n  Accepts forms of the form (DEFINE id expr) only,\n  where id is an identifier\n  "
+         stx stx))))
+
+(define-syntax (DEFINE-VALUES stx)
+  (syntax-case stx ()
+    ((_ (id ...) expr)
+     #'(begin (set! mutable-variables (append '(id ...) mutable-variables))
+         (DEF-VALUES (id ...) expr)))))
 
 ;====================================================================================================
 
@@ -1317,5 +1338,9 @@
         ((= m (+ (* 2 3^<h-1>)))   (mover  h-1 t r f))
         ((< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
 
-;=====================================================================================================
+;====================================================================================================
+
+; (list-mutable-variables)
+
+;====================================================================================================
 ; The end
