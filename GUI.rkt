@@ -14,10 +14,10 @@
 
 ;=====================================================================================================
 
-(provide tower-of-hanoi idle-limit )
+(provide tower-of-hanoi idle-limit)
   
 ;=====================================================================================================
-; Apart from importing all of racket/base for phase 0 no more is imported than necessary.
+; Apart from importing all of racket/base for phase 0 and phase 1 no more is imported than necessary.
 
 (require   
   (only-in graphics/graphics
@@ -54,10 +54,15 @@
     processor-count
     range
     ~r)
+  (only-in racket/base
+    (define DEFINE)
+    (define-values DEFINE-VALUES))
   (for-syntax
-    (only-in racket/base
-      syntax
-      syntax-case)))
+    racket/base
+    (only-in racket/syntax
+      generate-temporary)
+    (only-in syntax/transformer
+      make-variable-like-transformer)))
     
 ;=====================================================================================================
 
@@ -85,24 +90,49 @@
         (values (make-next val) (cons val vals))))))
 
 ;=====================================================================================================
-; When the GUI is waiting for a mouse-click or a response to a modal dialog but the user does not
-; click or answer within a certain time, the GUI aborts. The limit is hold in parameter idle-limit.
+; Syntaxes define and define-values are redefined such as to produce immutable variables. For mutable
+; variables DEFINE and DEFINE-VALUES must be used, which are imported from racket/base as synonyms of
+; the original versions of define and define-values. The value of an immutable variable can be
+; mutable, for example a mutable vector or a structure with mutable fields. The phrase "immutable
+; variable" is a contradictio in terminis ☺, but remember that in fact a variable is a container for a
+; value.
 
-(define default-idle-minutes 10)
-(define max-idle-minutes  10080) ; A full week (7×24×60 = 10080)
-(define min-idle-minutes      1)
-
-(define idle-limit
-  (make-parameter
-    default-idle-minutes
-    (λ (time) ; Minutes.
-      (cond
-        ((and (exact-positive-integer? time) (<= time max-idle-minutes)) time)
-        (else
-          (raise-user-error '|Parameter idle-limit|
-            "\n  Exact positive integer ~s<=time<=~s wanted.\n  Given ~s"
-            min-idle-minutes  max-idle-minutes time))))
-    'parameter-idle-limit))
+(define-syntax (define stx)
+  (define (extract-id head)
+    (syntax-case head ()
+      ((head arg ...)
+       (if (identifier? #'head) #'head
+         (extract-id #'head)))
+      (_ (raise-syntax-error 'define "not an identifier" stx head))))
+  (syntax-case stx ()
+    ((_ id value)
+     (identifier? #'id)
+     (with-syntax ((var (generate-temporary (syntax-e #'id))))
+       #'(begin
+           (DEFINE var value)
+           (define-syntax id (make-variable-like-transformer #'var)))))
+    ((_ head body ...)
+     (with-syntax ((id (extract-id #'head)))
+       #'(define id (let () (DEFINE head body ...) id))))))
+  
+(define-syntax (define-values stx)
+  (define (check-identifiers ids)
+    (cond
+      ((null? ids) #t)
+      ((identifier? (car ids)) (check-identifiers (cdr ids)))
+      (else (raise-syntax-error 'define-values "not an identifier" stx (car ids)))))
+  (define (check-duplicates ids)
+    (define dupid (check-duplicate-identifier ids))
+    (when dupid (raise-syntax-error 'define-values "duplicate identifier" stx dupid)))
+  (syntax-case stx ()
+    ((_ (id ...) expr)
+     (let ((ids (syntax->list #'(id ...))))
+       (check-identifiers ids)
+       (check-duplicates ids)
+       (with-syntax (((var ...) (generate-temporaries #'(id ...))))
+         #'(begin
+             (DEFINE-VALUES (var ...) expr)
+             (define-syntax id (make-variable-like-transformer #'var)) ...))))))
 
 ;=====================================================================================================
 ; Main procedure.
@@ -133,15 +163,14 @@
 
 (define (initialize ec)
   ; Initialize or reinitialize mutable variables.
+  (set! allow-intro                 #t)
+  (set! clock                        0)
+  (set! delay                    click)
   (set! escape                      ec)
   (set! height              max-height)
-  (set! delay                    click)
-  (set! str-count                   "")
-  (set! clock                        0)
-  (set! move-count                   0)
   (set! manual-count                 0)
-  (set! last-compute                "")
-  (set! allow-intro                 #t)
+  (set! move-count                   0)
+  (set! str-count                   "")
   (set! top-custodian (make-custodian))
   ; Open graphics and the viewport.
   (open-graphics)
@@ -171,18 +200,38 @@
 ; open and assign the viewport. The top-custodian is shut down during termination. A shut down
 ; custodian cannot no longer be used. Therefore the top-custodian must be reinitialized too.
 
-(define height        'mutable)
-(define delay         'mutable)
-(define str-count     'mutable)
-(define clock         'mutable)
-(define move-count    'mutable)
-(define manual-count  'mutable)
-(define allow-intro   'mutable)
-(define disk-distr    'mutable)
-(define last-compute  'mutable)
-(define escape        'delayed)
-(define viewport      'delayed)
-(define top-custodian 'delayed)
+(DEFINE allow-intro   'mutable)
+(DEFINE clock         'mutable)
+(DEFINE delay         'mutable)
+(DEFINE disk-distr    'mutable)
+(DEFINE height        'mutable)
+(DEFINE manual-count  'mutable)
+(DEFINE move-count    'mutable)
+(DEFINE str-count     'mutable)
+(DEFINE last-compute  ""      ) ; Initialized here but not reinitialized by procedure initialize.
+(DEFINE escape        'delayed)
+(DEFINE top-custodian 'delayed)
+(DEFINE viewport      'delayed)
+
+;=====================================================================================================
+; When the GUI is waiting for a mouse-click or a response to a modal dialog but the user does not
+; click or answer within a certain time, the GUI aborts. The limit is hold in parameter idle-limit.
+
+(define default-idle-minutes 10)
+(define max-idle-minutes  10080) ; A full week (7×24×60 = 10080)
+(define min-idle-minutes      1)
+
+(define idle-limit
+  (make-parameter
+    default-idle-minutes
+    (λ (time) ; Minutes.
+      (cond
+        ((and (exact-positive-integer? time) (<= time max-idle-minutes)) time)
+        (else
+          (raise-user-error '|Parameter idle-limit|
+            "\n  Exact positive integer ~s<=time<=~s wanted.\n  Given ~s"
+            min-idle-minutes  max-idle-minutes time))))
+    'parameter-idle-limit))
 
 ;=====================================================================================================
 ; Timing out after exceeding the idle-limit. When the GUI is waiting for a mouse-click or a response
@@ -191,15 +240,17 @@
 
 (define-syntax (time-out stx)
   (syntax-case stx ()
-    ((_ #f expr ...) #'(time-out-proc #f (λ () expr ...)))
+    ((_ #f expr ...) #'(time-out-proc #%datum #f (λ () expr ...)))
     ((_ #t expr ...) #'(time-out-proc #t (λ () expr ...)))
     ((_    expr ...) #'(time-out-proc #f (λ () expr ...)))))
+
+(define not-finished (string->uninterned-symbol "not-finished"))
 
 (define (time-out-proc dialog? thunk)
   (when dialog?
     ((draw-string viewport) posn-warn1 str-warn1 red)
     ((draw-string viewport) posn-warn2 str-warn2 red))
-  (define result-box (box #f))
+  (define result-box (box not-finished))
   (define custodian (make-custodian top-custodian))
   (define (handle-thread thread)
     (sync/timeout (* (idle-limit) 60) thread) ; Minutes to seconds.
@@ -207,11 +258,11 @@
     (custodian-shutdown-all custodian)
     (define result (unbox result-box))
     (cond
-      (result                                 ; Answer received within maximum idle time.
-        (when dialog?                         ; Clear warning when applicable.
-          ((clear-string viewport) posn-warn1 str-warn1)
-          ((clear-string viewport) posn-warn2 str-warn2))
-        (apply values result))                ; Return the result, possibly a multiple value.
+      ((not (eq? result not-finished))        ; Answer received within maximum idle time.
+       (when dialog?                         ; Clear warning when applicable.
+         ((clear-string viewport) posn-warn1 str-warn1)
+         ((clear-string viewport) posn-warn2 str-warn2))
+       (apply values result))                ; Return the result, possibly a multiple value.
       (else (time-out-abort))))               ; Maximum idle time exceeded. Abort.
   (parameterize ((current-eventspace (make-eventspace)) (current-custodian custodian))
     (handle-thread
@@ -394,7 +445,7 @@
    (make-posn (+ x 2*str-offset) (+ y button-hght (- 2*str-offset))) str blue))
 
 ;=====================================================================================================
-; Procedures drawing disks, pegs and the girder.
+; Procedures drawing pegs, disks and the girder.
 
 (define (draw-pegs)
   (for ((p (in-range 3)))
@@ -411,8 +462,7 @@
 
 (define (draw-disk d h p (color black))
   (define width (disk-width d))
-  (define center (+ (peg-x p) (/ peg-width 2)))
-  (define x (- center (/ width 2)))
+  (define x (- (+ (peg-x p) (quotient peg-width 2)) (quotient width 2)))
   (define y (- vp-height border base-size (* (add1 h) disk-height)))
   (define pos (make-posn x y))
   ((draw-solid-rectangle viewport) pos width disk-height color)
@@ -423,13 +473,13 @@
 
 (define (remove-disk d h p)
   (define width (disk-width d))
-  (define center (+ (peg-x p) (/ peg-width 2)))
-  (define x (- center (/ width 2)))
+  (define center (+ (peg-x p) (quotient peg-width 2)))
+  (define x (- center (quotient width 2)))
   (define y (- vp-height border base-size (* (add1 h) disk-height)))
   (define pos (make-posn x y))
   ((clear-solid-rectangle viewport) pos width disk-height)
   ((draw-solid-rectangle viewport)
-   (make-posn (- center (/ peg-width 2)) y) peg-width disk-height green))
+   (make-posn (- center (quotient peg-width 2)) y) peg-width disk-height green))
 
 (define (mark-disk d h p) (draw-disk d h p red))
 
@@ -440,8 +490,8 @@
     (define size (car ((get-string-size viewport) str)))
     ((draw-string viewport)
      (posn-add (make-posn (peg-x p) (- vp-height border 3))
-       (- (/ size 2))
-       (- (/ str-offset 2)))
+       (- (quotient size 2))
+       (- (quotient str-offset 2)))
      str white)))
 
 ;=====================================================================================================
@@ -478,7 +528,7 @@
   (+ border
     base-size
     (* p (+ border max-disk-width))
-    (/ (- max-disk-width peg-width) 2)))
+    (quotient (- max-disk-width peg-width) 2)))
 
 (define-values-accumulative
   (posn-height
@@ -1039,7 +1089,7 @@
   (syntax-case stx ()
     ((_ expr) #'(accept-cancel-thunk (λ () expr)))))
 
-(define running-threads #f)
+(DEFINE running-threads #f)
 
 (define (accept-cancel-thunk thunk)
   (define result-box (box #f))
@@ -1059,7 +1109,7 @@
 
 (define buttons-for-action-compute (remove button-cancel all-buttons))
 
-(define-values (SLC h M m f t) (values #f #f #f #f #f #f)) ; Procedure validate-compute sets these.
+(DEFINE-VALUES (SLC h M m f t) (values #f #f #f #f #f #f)) ; Procedure validate-compute sets these.
 (define namespace (make-base-namespace))
 (define (catch-exn-for-compute e) (set! SLC 'wrong))
 (define nr-of-disks-per-line 50)
@@ -1086,7 +1136,7 @@
       (not (= f t))
       (let ((expt3h (expt 3 h)))
         (< 0 m (case SLC ((S) (expt 2 h)) ((L) expt3h) ((C) (add1 expt3h))))))
-    (set! SLC 'wrong)))
+    (and (set! SLC 'wrong) #f)))
 
 (define (action-compute)
   (define-values (ok answer)
