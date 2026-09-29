@@ -17,7 +17,7 @@
 (provide tower-of-hanoi idle-limit )
   
 ;=====================================================================================================
-; Apart from importing all of racket/base for phase 1 no more is imported than necessary.
+; Apart from importing all of racket/base for phase 0 no more is imported than necessary.
 
 (require   
   (only-in graphics/graphics
