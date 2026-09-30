@@ -65,37 +65,11 @@
       make-variable-like-transformer)))
     
 ;=====================================================================================================
-
-(define-syntax-rule
-  (in-reversed-range n)
-  (in-range (sub1 n) -1 -1))
-
-; Define values with in addition a list of these values.
-
-(define-syntax-rule
-  (define-values-with-list-of-values the-list (var value) ...)
-  (begin
-    (define-values (var ...) (values value ...))
-    (define the-list (list var ...))))
-
-; Defines values accumulatively, each one, the first one excepted, made from the previous one by an
-; make-next procedure.
-
-(define-syntax-rule
-  (define-values-accumulative (id ...) first make-next)
-  (define-values (id ...)
-    (apply values
-      (for/fold ((val first) (vals '()) #:result (reverse vals))
-        ((index (in-range (length '(id ...)))))
-        (values (make-next val) (cons val vals))))))
-
-;=====================================================================================================
 ; Syntaxes define and define-values are redefined such as to produce immutable variables. For mutable
 ; variables DEFINE and DEFINE-VALUES must be used, which are imported from racket/base as synonyms of
 ; the original versions of define and define-values. The value of an immutable variable can be
 ; mutable, for example a mutable vector or a structure with mutable fields. The phrase "immutable
-; variable" is a contradictio in terminis ☺, but remember that in fact a variable is a container for a
-; value.
+; variable" is a contradictio in terminis ☺ but in fact a variable is a container for a value.
 
 (define-syntax (define stx)
   (define (extract-id head)
@@ -133,6 +107,40 @@
          #'(begin
              (DEFINE-VALUES (var ...) expr)
              (define-syntax id (make-variable-like-transformer #'var)) ...))))))
+
+;=====================================================================================================
+
+(define-syntax-rule
+  (in-reversed-range n)
+  (in-range (sub1 n) -1 -1))
+
+; Define values with in addition a list of these values.
+
+(define-syntax-rule
+  (define-values-with-list-of-values the-list (var value) ...)
+  (begin
+    (define-values (var ...) (values value ...))
+    (define the-list (list var ...))))
+
+; Defines values accumulatively, each one, the first one excepted, made from the previous one by an
+; make-next procedure.
+
+(define-syntax-rule
+  (define-values-accumulative (id ...) first make-next)
+  (define-values (id ...)
+    (let* ((n (sub1 (length '(id ...)))) (m (sub1 n)))
+      (cond
+        ((< n 0)
+         (raise-user-error 'define-values-accumulative "at least one id required, given none"))
+        ((zero? n) first)
+        (else
+          (apply values
+            (cons first
+              (for/fold ((val (make-next first)) (vals '()) #:result (reverse vals))
+                ((k (in-range n)))
+                (cond ; Do not apply make-next to the last val.
+                  ((= k m) (values #f (cons val vals)))
+                  (else (values (make-next val) (cons val vals))))))))))))
 
 ;=====================================================================================================
 ; Main procedure.
@@ -194,11 +202,13 @@
 ;=====================================================================================================
 ; Internal state. The following variables can be mutated while playing. They are initialized or
 ; reinitialized by procedure initialize. Reinitialization is necessary when the GUI is called more
-; than once with the same instantiation. Variables escape, viewport and top-custodian are not mutated
+; than once from the same instantiation. Variables escape, viewport and top-custodian are not mutated
 ; again after they have been initialized or reinitialized. The viewport can not yet be assigned
 ; because this needs graphics to be open. Graphics is opened by procedure initialize which also will
 ; open and assign the viewport. The top-custodian is shut down during termination. A shut down
 ; custodian cannot no longer be used. Therefore the top-custodian must be reinitialized too.
+; Variable last-compute is initialized but not reinitialized. The last entry given for action compute
+; is memorized for subsequent calls.
 
 (DEFINE allow-intro   'mutable)
 (DEFINE clock         'mutable)
@@ -1177,8 +1187,9 @@
     (time-out #t
       (get-text-from-user str-compute
         (string-append
-          (if first? "" "Wrong data, try again or cancel.\n")
-          "Give mode, height, move, from-disk and onto-disk\n")
+          (if first? "" "Wrong data, try again editing it or cancel.\n")
+          "Give mode, height, move, from-disk and onto-disk\n"
+          "The move can be an expression in which h is the height.\n")
         #f
         last-compute)))
   (viewport-flush-input viewport)
