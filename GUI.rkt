@@ -126,21 +126,15 @@
 ; make-next procedure.
 
 (define-syntax-rule
-  (define-values-accumulative (id ...) first make-next)
-  (define-values (id ...)
-    (let* ((n (sub1 (length '(id ...)))) (m (sub1 n)))
-      (cond
-        ((< n 0)
-         (raise-user-error 'define-values-accumulative "at least one id required, given none"))
-        ((zero? n) first)
-        (else
-          (apply values
-            (cons first
-              (for/fold ((val (make-next first)) (vals '()) #:result (reverse vals))
-                ((k (in-range n)))
-                (cond ; Do not apply make-next to the last val.
-                  ((= k m) (values #f (cons val vals)))
-                  (else (values (make-next val) (cons val vals))))))))))))
+  (define-values-accumulative (id ... last-id) first make-next)
+  (define-values (id ... last-id)
+    (apply values
+      (let
+        ((first-val first))
+        (for/fold ((val first-val) (vals (list first-val)) #:result (reverse vals))
+          ((index (in-list '(id ...))))
+          (let ((next-val (make-next val)))
+            (values next-val (cons next-val vals))))))))
 
 ;=====================================================================================================
 ; Main procedure.
@@ -539,6 +533,8 @@
     base-size
     (* p (+ border max-disk-width))
     (quotient (- max-disk-width peg-width) 2)))
+
+
 
 (define-values-accumulative
   (posn-height
