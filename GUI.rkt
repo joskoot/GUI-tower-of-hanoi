@@ -49,13 +49,9 @@
     message-box
     message-box/custom)
   (only-in racket
-    infinite?
-    make-list
-    processor-count
-    range
-    ~r)
+    infinite? make-list processor-count range ~r)
   (only-in racket/base
-    (define DEFINE)
+    (define        DEFINE       )
     (define-values DEFINE-VALUES))
   (for-syntax
     racket/base
@@ -67,9 +63,9 @@
 ;=====================================================================================================
 ; Syntaxes define and define-values are redefined such as to produce immutable variables. For mutable
 ; variables DEFINE and DEFINE-VALUES must be used, which are imported from racket/base as synonyms of
-; the original versions of define and define-values. The value of an immutable variable can be
-; mutable, for example a mutable vector or a structure with mutable fields. The phrase "immutable
-; variable" is a contradictio in terminis ☺ but in fact a variable is a container for a value.
+; their original versions. The value of an immutable variable can be mutable, for example a mutable
+; vector or a structure with mutable fields. (Depending on its context the phrase "immutable variable"
+; can be a contradictio in terminis.(☺))
 
 (define-syntax (define stx)
   (define (extract-id head)
@@ -123,7 +119,7 @@
     (define the-list (list var ...))))
 
 ; Defines values accumulatively, each one, the first one excepted, made from the previous one by an
-; make-next procedure.
+; make-next procedure. Procedure make-next is not applies to last-id.
 
 (define-syntax-rule
   (define-values-accumulative (id ... last-id) first make-next)
@@ -262,7 +258,7 @@
     (custodian-shutdown-all custodian)
     (define result (unbox result-box))
     (cond
-      ((not (eq? result not-finished))        ; Answer received within maximum idle time.
+      ((not (eq? result not-finished))       ; Answer received within maximum idle time.
        (when dialog?                         ; Clear warning when applicable.
          ((clear-string viewport) posn-warn1 str-warn1)
          ((clear-string viewport) posn-warn2 str-warn2))
@@ -533,8 +529,6 @@
     base-size
     (* p (+ border max-disk-width))
     (quotient (- max-disk-width peg-width) 2)))
-
-
 
 (define-values-accumulative
   (posn-height
@@ -1378,6 +1372,176 @@
         ((< m (+ 3^<h-1> 3^<h-1>)) (long m h-1 r f t))
         ((= m (+ (* 2 3^<h-1>)))   (mover  h-1 t r f))
         ((< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
+
+;=====================================================================================================
+; Tests
+#;
+(begin ; Follow the displayed instructions.
+  
+  (require test/test)
+
+  (define out-port (current-output-port))
+
+  (displayln "Test 13 lasts a minute. Do not interfere.")
+  (displayln "Test 14 passes only when you use the quit button to quit from the GUI.\n")
+
+  (test 1
+    ((define a 1)
+     (set! a 2))
+    '()
+    #:error "set!: cannot mutate identifier")
+
+  (test 2
+    ((DEFINE a 1)
+     (set! a 2)
+     a)
+    '(2))
+
+  (test 3
+    ((define-values () (values)))
+    #f)
+
+  (test 4
+    ((define-values (a b c) (values 1 2 3))
+     (write (list a b c)))
+    #f
+    #:output "(1 2 3)")
+
+  (test 5
+    ((define-values (a b c) (values 1 2 3))
+     (set! a 4))
+    '()
+    #:error "set!: cannot mutate identifier")
+
+  (test 6
+    ((define-values-with-list-of-values the-list (a 1) (b 2) (c 3))
+     (list the-list a b c))
+    '(((1 2 3) 1 2 3)))
+
+  (test 7
+    ((define-values-accumulative () 1 add1))
+    '()
+    #:error
+    "define-values-accumulative: use does not match pattern:
+  (define-values-accumulative (id ... last-id) first make-next)")
+
+  (test 8
+    ((define-values-accumulative (a b c) 1
+       (λ (x) (writeln x) (add1 x)))
+     (list a b c))
+    '((1 2 3))
+    #:output "1 2")
+
+  (test 9
+    ((idle-limit 0))
+    '()
+    #:error "Parameter idle-limit: Exact positive integer 1<=time<=10080 wanted. Given 0")
+  
+  (test 10
+    ((idle-limit 20000))
+    '()
+    #:error "Parameter idle-limit: Exact positive integer 1<=time<=10080 wanted. Given 20000")
+
+  (test 11
+    ((idle-limit 1)
+     (idle-limit))
+    '(1))
+
+  (test 12
+    ((idle-limit))
+    '(10))
+
+  (test 13 ; This test takes a minute. Do not click in the GUI. If you want you can close the GUI.
+    ((displayln
+       "Test 13 takes a minute. Do not click in the GUI.\nIf you want you can close the GUI.\n"
+       out-port)
+     (idle-limit 1)
+     (tower-of-hanoi))
+    '()
+    #:exn #f
+    #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
+   Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
+  
+  (test 14 ; To pass this test button quit must be used close the GUI, possibly after other actions.
+    ((displayln
+       "To pass test 14 button quit must be used close the GUI,\npossibly after other actions.\n"
+       out-port)
+     (tower-of-hanoi))
+    '())
+
+  (test 15
+    ((for/list ((m (in-range 1 8)))
+       (call-with-values (λ () (compute-short 3 m 0 1)) (λ x (cons m x)))))
+    '(((1 0 0 1 (1 0 0))
+       (2 1 0 2 (1 2 0))
+       (3 0 1 2 (2 2 0))
+       (4 2 0 1 (2 2 1))
+       (5 0 2 0 (0 2 1))
+       (6 1 2 1 (0 1 1))
+       (7 0 0 1 (1 1 1)))))
+  
+  (test 16
+    ((for/list ((m (in-range 1 27)))
+       (call-with-values (λ () (compute-long 3 m 0 1)) (λ x (cons m x)))))
+    '((( 1 0 0 2 (2 0 0))
+       ( 2 0 2 1 (1 0 0))
+       ( 3 1 0 2 (1 2 0))
+       ( 4 0 1 2 (2 2 0))
+       ( 5 0 2 0 (0 2 0))
+       ( 6 1 2 1 (0 1 0))
+       ( 7 0 0 2 (2 1 0))
+       ( 8 0 2 1 (1 1 0))
+       ( 9 2 0 2 (1 1 2))
+       (10 0 1 2 (2 1 2))
+       (11 0 2 0 (0 1 2))
+       (12 1 1 2 (0 2 2))
+       (13 0 0 2 (2 2 2))
+       (14 0 2 1 (1 2 2))
+       (15 1 2 0 (1 0 2))
+       (16 0 1 2 (2 0 2))
+       (17 0 2 0 (0 0 2))
+       (18 2 2 1 (0 0 1))
+       (19 0 0 2 (2 0 1))
+       (20 0 2 1 (1 0 1))
+       (21 1 0 2 (1 2 1))
+       (22 0 1 2 (2 2 1))
+       (23 0 2 0 (0 2 1))
+       (24 1 2 1 (0 1 1))
+       (25 0 0 2 (2 1 1))
+       (26 0 2 1 (1 1 1)))))
+  
+  (test 17
+    ((for/list ((m (in-range 1 28)))
+       (call-with-values (λ () (compute-circular 3 m 0 1)) (λ x (cons m x)))))
+    '((( 1 0 0 1 (1 0 0))
+       ( 2 1 0 2 (1 2 0))
+       ( 3 0 1 0 (0 2 0))
+       ( 4 0 0 2 (2 2 0))
+       ( 5 2 0 1 (2 2 1))
+       ( 6 0 0 1 (1 0 1))
+       ( 7 0 1 2 (2 0 1))
+       ( 8 1 0 1 (2 1 1))
+       ( 9 0 2 1 (1 1 1))
+       (10 0 1 0 (0 1 1))
+       (11 1 1 2 (0 2 1))
+       (12 0 0 1 (1 2 1))
+       (13 0 1 2 (2 2 1))
+       (14 2 1 2 (0 0 2))
+       (15 0 0 2 (2 0 2))
+       (16 0 2 1 (1 0 2))
+       (17 1 0 2 (1 2 2))
+       (18 0 1 2 (2 2 2))
+       (19 0 2 0 (0 2 2))
+       (20 1 2 1 (0 1 2))
+       (21 0 0 2 (2 1 2))
+       (22 0 2 1 (1 1 2))
+       (23 2 2 0 (1 1 0))
+       (24 0 1 0 (0 1 0))
+       (25 0 0 2 (2 1 0))
+       (26 1 1 0 (2 0 0))
+       (27 0 2 0 (0 0 0)))))
+  
+  (test-report))
 
 ;====================================================================================================
 ; The end
