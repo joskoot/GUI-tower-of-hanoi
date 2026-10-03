@@ -19,7 +19,7 @@
 ;=====================================================================================================
 ; Apart from importing all of racket/base for phase 0 and phase 1 no more is imported than necessary.
 
-(require   
+(require  
   (only-in graphics/graphics
     clear-solid-rectangle
     clear-string
@@ -142,8 +142,8 @@
     close))
 
 (define (GUI)
-  (let/ec ec
-    (initialize ec)
+  (let/cc cc
+    (initialize cc)
     (parameterize ((current-custodian top-custodian)) (main))))
 
 (define (main) (action) (main))
@@ -159,12 +159,12 @@
 ; Initialize or reinitialize mutable variables and buttons with content.
 ; Open graphics and the viewport. Draw the GUI.
 
-(define (initialize ec)
+(define (initialize cc)
   ; Initialize or reinitialize mutable variables.
   (set! allow-intro                 #t)
   (set! clock                        0)
   (set! delay                    click)
-  (set! escape                      ec)
+  (set! escape                      cc)
   (set! height              max-height)
   (set! manual-count                 0)
   (set! move-count                   0)
@@ -258,12 +258,14 @@
     (custodian-shutdown-all custodian)
     (define result (unbox result-box))
     (cond
-      ((not (eq? result not-finished))       ; Answer received within maximum idle time.
-       (when dialog?                         ; Clear warning when applicable.
-         ((clear-string viewport) posn-warn1 str-warn1)
-         ((clear-string viewport) posn-warn2 str-warn2))
-       (apply values result))                ; Return the result, possibly a multiple value.
-      (else (time-out-abort))))               ; Maximum idle time exceeded. Abort.
+      ((eq? result not-finished)              ; Maximum idle time exceeded. Abort.
+       (time-out-abort))
+      (else                                   ; Answer received within maximum idle time.
+        (when dialog?                         ; Clear warning when applicable.
+          ((clear-string viewport) posn-warn1 str-warn1)
+          ((clear-string viewport) posn-warn2 str-warn2))
+        (apply values result))))              ; Return the result, possibly a multiple value.
+              
   (parameterize ((current-eventspace (make-eventspace)) (current-custodian custodian))
     (handle-thread
       (thread
@@ -271,7 +273,6 @@
         #:pool 'own))))
 
 (define (time-out-abort)
-  ; event
   (define limit (idle-limit))
   (fprintf (current-error-port)
     "\nTower of Hanoi\n  ~
@@ -370,18 +371,18 @@
     ((in-button?)
      (in-region? pos (button1-region button)))
     ((enabled?)
-     (button1-enabled? button))
+     (button1-enabled?               button))
     ((disable)
-     (set-button1-enabled?! button #f)
-     (draw-disabled-button  button))
+     (set-button1-enabled?!          button #f)
+     (draw-disabled-button           button))
     ((enable)
-     (set-button1-enabled?! button #t)
-     (draw-button button))))
+     (set-button1-enabled?!          button #t)
+     (draw-button                    button))))
 
 (define (proc-button2 button action (arg #f)) ; For procedure property of buttons with content.
   (case action
     ((get-content)
-     (button2-content      button))
+     (button2-content      button           ))
     ((put-content)
      (set-button2-content! button        arg)
      (draw-button-content  button        arg))
@@ -399,13 +400,13 @@
 (define (make-button name position (content #f))
   ; Constructor make-button is called either without content or with a true content, never false.
   ; Hence, when content is #f, a button without content must be made, else one with content.
-  (let*
-    ((pos position)
-     (region (make-region pos button-width button-hght))
-     (str-name (symbol->string name)))
+  (let
+    ((region (make-region position button-width button-hght))
+     (str-name (symbol->string name))
+     (enabled #t))
     (cond
-      (content (make-button2 #t region pos str-name content)) ; #t is for field enabled.
-      (else    (make-button1 #t region pos str-name     ))))) ; #t is for field enabled.
+      (content (make-button2 enabled region position str-name content))
+      (else    (make-button1 enabled region position str-name     )))))
 
 ; Buttons can be disabled and enabled.
 
@@ -658,8 +659,8 @@
          (vector-set! disk-distr to-peg (cons d dest-peg-list-of-disks))
          (draw-disk d (length dest-peg-list-of-disks) to-peg)
          (increment-manual-count))
-        (else                          ; The move is not allowed. Unmark the
-          (draw-disk d h from-peg))))) ; selected disk and ignore the mouse-click
+        (else                            ; The move is not allowed. Unmark the
+          (draw-disk d h from-peg)))))   ; selected disk and ignore the mouse-click
   (button-cancel 'disable))
 
 (define (size-of-top-disk p)             ; In fact the disk ordinal is returned, not its size.
@@ -764,9 +765,9 @@
 
 (define (short)
   (reset-time-and-move-counter)
-  (let/ec ec
+  (let/cc cc
     ; The exit allows procedure move-disk to quit from the action.
-    (define (exit) (clear-msg) (ec))
+    (define (exit) (clear-msg) (cc))
     (define distr
       (for*/list
         ((d (in-reversed-range height))
@@ -790,9 +791,9 @@
 (define (long)
   (action-reset)
   (reset-time-and-move-counter)
-  (let/ec ec
+  (let/cc cc
     ; The exit allows procedure move-disk to stop the action.
-    (define (exit) (clear-msg) (ec))
+    (define (exit) (clear-msg) (cc))
     (define p-list
       (for*/list
         ((d (in-reversed-range height))
@@ -818,9 +819,9 @@
 (define (circular)
   (action-reset)
   (reset-time-and-move-counter)
-  (let/ec ec
+  (let/cc cc
     ; The exit allows procedure move-disk to stop the action.
-    (define (exit) (clear-msg) (ec))
+    (define (exit) (clear-msg) (cc))
     (define (longest-circular-path h f t)
       (unless (zero? h)
         (define h-1 (sub1 h))
@@ -1245,15 +1246,16 @@
   
 ;=====================================================================================================
 ; Parallelization of the computation of distribution of disks by action-compute.
+; Implemented with threads.
 
-(define (distribute n m)
+(define (distribute n m) ; --> list (k ...) such that (+ k ...) = n and the k's differ by 1 at most.
   (cond
     ((<= n m) (make-list n 1))
     (else
       (define-values (p q) (quotient/remainder n m))
       (append (make-list (- m q) p) (make-list q (add1 p))))))
 
-(define (ranges n)
+(define (ranges n) ; Converts a distribution to a list of ranges, one range for each thread.
   (define d (distribute n (processor-count)))
   (for/fold ((i 1) (r '()) #:result (reverse r)) ((k (in-list d)))
     (values (+ i k) (cons (list (sub1 i) (+ i k -1)) r))))
@@ -1374,16 +1376,11 @@
         ((< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
 
 ;=====================================================================================================
-; Tests
+; Tests. If you don't have it yet, install "https://github.com/joskoot/test.git" before testing.
 #;
 (begin ; Follow the displayed instructions.
   
   (require test/test)
-
-  (define out-port (current-output-port))
-
-  (displayln "Test 13 lasts a minute. Do not interfere.")
-  (displayln "Test 14 passes only when you use the quit button to quit from the GUI.\n")
 
   (test 1
     ((define a 1)
@@ -1423,14 +1420,14 @@
     '()
     #:error
     "define-values-accumulative: use does not match pattern:
-  (define-values-accumulative (id ... last-id) first make-next)")
+    (define-values-accumulative (id ... last-id) first make-next)")
 
-  (test 8
-    ((define-values-accumulative (a b c) 1
+  (test 8 ; Also check that the start-expr is evaluated once only.
+    ((define-values-accumulative (a b c) (begin (writeln 'start) 1)
        (λ (x) (writeln x) (add1 x)))
      (list a b c))
     '((1 2 3))
-    #:output "1 2")
+    #:output "start 1 2")
 
   (test 9
     ((idle-limit 0))
@@ -1450,28 +1447,11 @@
   (test 12
     ((idle-limit))
     '(10))
-
-  (test 13 ; This test takes a minute. Do not click in the GUI. If you want you can close the GUI.
-    ((displayln
-       "Test 13 takes a minute. Do not click in the GUI.\nIf you want you can close the GUI.\n"
-       out-port)
-     (idle-limit 1)
-     (tower-of-hanoi))
-    '()
-    #:exn #f
-    #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
-   Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
   
-  (test 14 ; To pass this test button quit must be used close the GUI, possibly after other actions.
-    ((displayln
-       "To pass test 14 button quit must be used close the GUI,\npossibly after other actions.\n"
-       out-port)
-     (tower-of-hanoi))
-    '())
-
-  (test 15
-    ((for/list ((m (in-range 1 8)))
-       (call-with-values (λ () (compute-short 3 m 0 1)) (λ x (cons m x)))))
+  (test 13
+    ((define h 3)
+     (for/list ((m (in-range 1 (expt 2 h))))
+       (call-with-values (λ () (compute-short h m 0 1)) (λ x (cons m x)))))
     '(((1 0 0 1 (1 0 0))
        (2 1 0 2 (1 2 0))
        (3 0 1 2 (2 2 0))
@@ -1480,9 +1460,10 @@
        (6 1 2 1 (0 1 1))
        (7 0 0 1 (1 1 1)))))
   
-  (test 16
-    ((for/list ((m (in-range 1 27)))
-       (call-with-values (λ () (compute-long 3 m 0 1)) (λ x (cons m x)))))
+  (test 14
+    ((define h 3)
+     (for/list ((m (in-range 1 (expt 3 h))))
+       (call-with-values (λ () (compute-long h m 0 1)) (λ x (cons m x)))))
     '((( 1 0 0 2 (2 0 0))
        ( 2 0 2 1 (1 0 0))
        ( 3 1 0 2 (1 2 0))
@@ -1510,8 +1491,9 @@
        (25 0 0 2 (2 1 1))
        (26 0 2 1 (1 1 1)))))
   
-  (test 17
-    ((for/list ((m (in-range 1 28)))
+  (test 15
+    ((define h 3)
+     (for/list ((m (in-range 1 (add1 (expt 3 h)))))
        (call-with-values (λ () (compute-circular 3 m 0 1)) (λ x (cons m x)))))
     '((( 1 0 0 1 (1 0 0))
        ( 2 1 0 2 (1 2 0))
@@ -1540,7 +1522,42 @@
        (25 0 0 2 (2 1 0))
        (26 1 1 0 (2 0 0))
        (27 0 2 0 (0 0 0)))))
+
+  (test 16
+    ((for/list ((n (in-range 100 111))) (distribute n 10)))
+    '(((10 10 10 10 10 10 10 10 10 10)
+       (10 10 10 10 10 10 10 10 10 11)
+       (10 10 10 10 10 10 10 10 11 11)
+       (10 10 10 10 10 10 10 11 11 11)
+       (10 10 10 10 10 10 11 11 11 11)
+       (10 10 10 10 10 11 11 11 11 11)
+       (10 10 10 10 11 11 11 11 11 11)
+       (10 10 10 11 11 11 11 11 11 11)
+       (10 10 11 11 11 11 11 11 11 11)
+       (10 11 11 11 11 11 11 11 11 11)
+       (11 11 11 11 11 11 11 11 11 11))))
+  #;
+  (begin
+    (define out-port (current-output-port))
+    (displayln "Test 16 lasts a minute. Do not interfere.")
+    (displayln "Test 17 passes only when you use the quit button to quit from the GUI.\n")
+
+    (test 17 ; This test takes a minute. Do not click in the GUI. If you want you can close the GUI.
+      ((displayln "Test 17 is running and takes a minute. Do not click in the GUI." out-port)
+       (displayln "If you want you can close the GUI in the title bar.\n" out-port)
+       (idle-limit 1)
+       (tower-of-hanoi))
+      '()
+      #:exn #f
+      #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
+   Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
   
+    (test 18 ; To pass this test button quit must be used close the GUI, possibly after other actions.
+      ((displayln "Test 18 is running. To pass this test button quit must be used" out-port)
+       (displayln "to close the GUI, possibly after other actions.\n" out-port)
+       (tower-of-hanoi))
+      '()))
+
   (test-report))
 
 ;====================================================================================================

@@ -223,7 +223,7 @@ This button is activated for actions that may be canceled.
 It returns to manual @seclink["Mode"]{mode} and
 may have the side effect of @seclink["Reset"]{resetting} the disks at the pile at the left.
 
-@subsection[#:tag "Peg n"]{Pegs 1, 2 and 3}
+@subsection[#:tag "Peg n"]{Pegs 0, 1 and 2}
 
 Used to make moves manually and for @seclink["Setup"]{setup} of a distribution of disks.
 @nb{The same} can be done by clicking nearby the corresponding peg.
