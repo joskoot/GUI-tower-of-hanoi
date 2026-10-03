@@ -118,8 +118,8 @@
     (define-values (var ...) (values value ...))
     (define the-list (list var ...))))
 
-; Defines values accumulatively, each one, the first one excepted, made from the previous one by an
-; make-next procedure. Procedure make-next is not applies to last-id.
+; Defines values accumulatively, each one, the first one excepted, made from the previous one by a
+; make-next procedure. Procedure make-next is not applied to last-id.
 
 (define-syntax-rule
   (define-values-accumulative (id ... last-id) first make-next)
@@ -153,6 +153,7 @@
 (define (close)
   (eprintf "Closing Tower of Hanoi.\n")
   ; Make sure running threads are killed.
+  (for-each kill-thread running-threads)
   (custodian-shutdown-all top-custodian)
   (close-viewport viewport)
   (close-graphics))
@@ -162,7 +163,7 @@
 ; Open graphics and the viewport. Draw the GUI.
 
 (define (initialize cc)
-  ; Initialize or reinitialize mutable variables.
+  ; Initialize or reinitialize mutable variables ot the internal state.
   (set! allow-intro                 #t)
   (set! clock                        0)
   (set! delay                    click)
@@ -170,7 +171,6 @@
   (set! height              max-height)
   (set! manual-count                 0)
   (set! move-count                   0)
-  (set! running-threads            '())
   (set! str-count                   "")
   (set! top-custodian (make-custodian))
   ; Open graphics and the viewport.
@@ -210,12 +210,16 @@
 (DEFINE height          'mutable)
 (DEFINE manual-count    'mutable)
 (DEFINE move-count      'mutable)
-(DEFINE running-threads 'mutable)
 (DEFINE str-count       'mutable)
 (DEFINE last-compute    ""      ) ; Initialized here but not reinitialized by procedure initialize.
 (DEFINE escape          'delayed)
 (DEFINE top-custodian   'delayed)
 (DEFINE viewport        'delayed)
+
+; The following mutable variables pertain to the internal state of action compute and are initialized
+; each time action compute is called.
+
+(DEFINE-VALUES (SLC h M m f t running-threads) (values #f #f #f #f #f #f '()))
 
 ;=====================================================================================================
 ; When the GUI is waiting for a mouse-click or a response to a modal dialog but the user does not
@@ -1112,7 +1116,6 @@
 
 (define buttons-for-action-compute (remove button-cancel all-buttons))
 
-(DEFINE-VALUES (SLC h M m f t) (values #f #f #f #f #f #f)) ; Procedure validate-compute sets these.
 (define namespace (make-base-namespace))
 (define (catch-exn-for-compute e) (set! SLC 'wrong))
 (define nr-of-disks-per-line 50)
@@ -1139,7 +1142,7 @@
       (not (= f t))
       (let ((expt3h (expt 3 h)))
         (< 0 m (case SLC ((S) (expt 2 h)) ((L) expt3h) ((C) (add1 expt3h))))))
-    (and (set! SLC 'wrong) #f)))
+    (begin (set! SLC 'wrong) #f)))
 
 (define (action-compute)
   (define-values (ok answer)
