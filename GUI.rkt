@@ -151,6 +151,8 @@
 (define (action) (dispatch (mouse-click-posn (time-out (get-mouse-click viewport)))))
 
 (define (close)
+  (eprintf "Closing Tower of Hanoi.\n")
+  ; Make sure running threads are killed.
   (custodian-shutdown-all top-custodian)
   (close-viewport viewport)
   (close-graphics))
@@ -168,6 +170,7 @@
   (set! height              max-height)
   (set! manual-count                 0)
   (set! move-count                   0)
+  (set! running-threads            '())
   (set! str-count                   "")
   (set! top-custodian (make-custodian))
   ; Open graphics and the viewport.
@@ -200,18 +203,19 @@
 ; Variable last-compute is initialized but not reinitialized. The last entry given for action compute
 ; is memorized for subsequent calls.
 
-(DEFINE allow-intro   'mutable)
-(DEFINE clock         'mutable)
-(DEFINE delay         'mutable)
-(DEFINE disk-distr    'mutable)
-(DEFINE height        'mutable)
-(DEFINE manual-count  'mutable)
-(DEFINE move-count    'mutable)
-(DEFINE str-count     'mutable)
-(DEFINE last-compute  ""      ) ; Initialized here but not reinitialized by procedure initialize.
-(DEFINE escape        'delayed)
-(DEFINE top-custodian 'delayed)
-(DEFINE viewport      'delayed)
+(DEFINE allow-intro     'mutable)
+(DEFINE clock           'mutable)
+(DEFINE delay           'mutable)
+(DEFINE disk-distr      'mutable)
+(DEFINE height          'mutable)
+(DEFINE manual-count    'mutable)
+(DEFINE move-count      'mutable)
+(DEFINE running-threads 'mutable)
+(DEFINE str-count       'mutable)
+(DEFINE last-compute    ""      ) ; Initialized here but not reinitialized by procedure initialize.
+(DEFINE escape          'delayed)
+(DEFINE top-custodian   'delayed)
+(DEFINE viewport        'delayed)
 
 ;=====================================================================================================
 ; When the GUI is waiting for a mouse-click or a response to a modal dialog but the user does not
@@ -240,7 +244,7 @@
 
 (define-syntax (time-out stx)
   (syntax-case stx ()
-    ((_ #f expr ...) #'(time-out-proc #%datum #f (λ () expr ...)))
+    ((_ #f expr ...) #'(time-out-proc #f (λ () expr ...)))
     ((_ #t expr ...) #'(time-out-proc #t (λ () expr ...)))
     ((_    expr ...) #'(time-out-proc #f (λ () expr ...)))))
 
@@ -265,8 +269,7 @@
           ((clear-string viewport) posn-warn1 str-warn1)
           ((clear-string viewport) posn-warn2 str-warn2))
         (apply values result))))              ; Return the result, possibly a multiple value.
-              
-  (parameterize ((current-eventspace (make-eventspace)) (current-custodian custodian))
+  (parameterize ((current-eventspace (make-eventspace)))
     (handle-thread
       (thread
         (λ () (set-box! result-box (call-with-values thunk list)))
@@ -1090,12 +1093,11 @@
   (syntax-case stx ()
     ((_ expr) #'(accept-cancel-thunk (λ () expr)))))
 
-(DEFINE running-threads #f)
-
 (define (accept-cancel-thunk thunk)
   (define result-box (box #f))
   (define task
-    (thread (λ () (set-box! result-box (call-with-values thunk list)))))
+    (parameterize ((current-custodian (make-custodian top-custodian)))
+      (thread (λ () (set-box! result-box (call-with-values thunk list))))))
   (let loop ()
     (sleep 1)
     (define click (ready-mouse-click viewport))
@@ -1169,7 +1171,7 @@
       (else (values 'ok #f))))
   (when answer (set! allow-intro #f))
   (when (eq? ok 'ok) (compute-help #t))
-  (set! running-threads #f)
+  (set! running-threads '())
   (enable/disable-buttons buttons-for-action-compute 'enable)
   (button-cancel 'disable))
 
