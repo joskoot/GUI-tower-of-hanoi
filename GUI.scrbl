@@ -63,8 +63,9 @@ They are put at the pegs.
 Initially all disks are at the peg at the left,
 forming a conical tower with the disks in order of decreasing size from bottom to top.
 See the @elemref["figure"]{figure} below.
-The goal of the game is to move all disks to the peg at the right by making successive moves.
-A move is made by taking the top disk of a non-empty peg and putting it on top onto another peg
+The goal of the game is to move all disks to the peg at the right by making
+suc@element['roman ?-]ces@element['roman ?-]sive moves.
+A move is made by taking the top disk of a non-empty peg and putting it on top at another peg
 or just putting it there if the peg of
 des@element['roman ?-]ti@element['roman ?-]na@element['roman ?-]tion has no disks.
 However, @nb{it is} not allowed to put a disk upon a smaller one.

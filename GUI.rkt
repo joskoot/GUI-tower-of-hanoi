@@ -13,86 +13,51 @@
 
 #lang racket/base
 
-(provide tower-of-hanoi idle-limit)
+(provide
+  tower-of-hanoi
+  idle-limit)
 
-;=====================================================================================================
-; Apart from all of racket/base for phase 0 and phase 1 no more is imported than necessary. Using
-; DrRacket with background expansion enabled a mouse over a variable in the right column shows its
-; number of bound occurrences and arrows to these occurrences. Commenting out one single binding makes
-; the program invalid. Hovering the mouse over 'generate temporary' says "no bound occurrences" but it
-; has one as can be seen by hovering the mouse over the name of the module (racket/syntax) from which
-; it is imported.
-
-(require
-  (only-in graphics/graphics
-    (clear-solid-rectangle            clear-solid-rectangle         )
-    (clear-string                     clear-string                  )
-    (close-graphics                   close-graphics                )
-    (close-viewport                   close-viewport                )
-    (draw-rectangle                   draw-rectangle                )
-    (draw-solid-rectangle             draw-solid-rectangle          )
-    (draw-string                      draw-string                   )
-    (get-mouse-click                  get-mouse-click               )
-    (get-string-size                  get-string-size               )
-    (make-posn                        make-posn                     )
-    (make-rgb                         make-rgb                      )
-    (mouse-click-posn                 mouse-click-posn              )
-    (open-graphics                    open-graphics                 )
-    (open-pixmap                      open-pixmap                   )
-    (open-viewport                    open-viewport                 )
-    (posn-x                           posn-x                        )
-    (posn-y                           posn-y                        )
-    (ready-mouse-click                ready-mouse-click             )
-    (viewport-flush-input             viewport-flush-input          ))
-  (only-in racket/gui/base
-    (current-eventspace               current-eventspace            )
-    (get-choices-from-user            get-choices-from-user         )
-    (get-text-from-user               get-text-from-user            )
-    (make-eventspace                  make-eventspace               )
-    (message+check-box                message+check-box             )
-    (message-box                      message-box                   )
-    (message-box/custom               message-box/custom            ))
+(require  
+  graphics/graphics
+  racket/gui/base
   (only-in racket
-    (infinite?                        infinite?                     )
-    (make-list                        make-list                     )
-    (processor-count                  processor-count               )
-    (range                            range                         )
-    (~r                               ~r                            ))
-  (only-in racket/base
-    (define                           DEFINE                        )
-    (define-values                    DEFINE-VALUES                 ))
+    infinite?
+    make-list
+    processor-count
+    range
+    ~r
+    (define        DEFINE       )
+    (define-values DEFINE-VALUES))
   (for-syntax
     racket/base
-    (only-in racket/syntax
-      (generate-temporary             generate-temporary            ))
-    (only-in syntax/transformer
-      (make-variable-like-transformer make-variable-like-transformer))))
-
+    racket/syntax
+    syntax/transformer))
+    
 ;=====================================================================================================
 ; Syntaxes define and define-values are redefined such as to produce immutable variables. For mutable
 ; variables DEFINE and DEFINE-VALUES must be used, which are imported from racket/base as synonyms of
 ; their original versions. The value of an immutable variable can be mutable, for example a mutable
-; vector or a structure with mutable fields. (The phrase "immutable variable" sounds like
-; a contradictio in terminis.(☺))
+; vector or a structure with mutable fields. (The phrase "immutable variable" sounds like a
+; contradictio in terminis.(☺))
 
 (define-syntax (define stx)
   (define (extract-id head)
     (syntax-case head ()
       ((head arg ...)
-       (if (identifier? (syntax head)) (syntax head)
-         (extract-id (syntax head))))
+       (if (identifier? #'head) #'head
+         (extract-id #'head)))
       (_ (raise-syntax-error 'define "not an identifier" stx head))))
   (syntax-case stx ()
     ((_ id value)
-     (identifier? (syntax id))
-     (with-syntax ((var (generate-temporary (syntax-e (syntax id)))))
-       (syntax (begin
-                 (DEFINE var value)
-                 (define-syntax id (make-variable-like-transformer (syntax var)))))))
+     (identifier? #'id)
+     (with-syntax ((var (generate-temporary (syntax-e #'id))))
+       #'(begin
+           (DEFINE var value)
+           (define-syntax id (make-variable-like-transformer #'var)))))
     ((_ head body ...)
-     (with-syntax ((id (extract-id (syntax head))))
-       (syntax (define id (let () (DEFINE head body ...) id)))))))
-
+     (with-syntax ((id (extract-id #'head)))
+       #'(define id (let () (DEFINE head body ...) id))))))
+  
 (define-syntax (define-values stx)
   (define (check-identifiers ids)
     (cond
@@ -104,13 +69,13 @@
     (when dupid (raise-syntax-error 'define-values "duplicate identifier" stx dupid)))
   (syntax-case stx ()
     ((_ (id ...) expr)
-     (let ((ids (syntax->list (syntax (id ...)))))
+     (let ((ids (syntax->list #'(id ...))))
        (check-identifiers ids)
        (check-duplicates ids)
-       (with-syntax (((var ...) (generate-temporaries (syntax (id ...)))))
-         (syntax (begin
-                   (DEFINE-VALUES (var ...) expr)
-                   (define-syntax id (make-variable-like-transformer (syntax var))) ...)))))))
+       (with-syntax (((var ...) (generate-temporaries #'(id ...))))
+         #'(begin
+             (DEFINE-VALUES (var ...) expr)
+             (define-syntax id (make-variable-like-transformer #'var)) ...))))))
 
 ;=====================================================================================================
 
@@ -154,7 +119,7 @@
     (initialize cc)
     (parameterize ((current-custodian top-custodian)) (main))))
 
-(define (main) (action) (main)) ; Repetition terminated only by action quit, a time-out or a break.
+(define (main) (action) (main))
 
 (define (action) (dispatch (mouse-click-posn (time-out (get-mouse-click viewport)))))
 
@@ -163,7 +128,7 @@
   ; by action compute. Both the line with 'kill-thread' and that with 'custodian-shutdown-all' are
   ; required and 'kill-thread' must precede 'custodian-shutdown-all'. Without this precaution DrRacket
   ; won't halt, although using less than 1% of CPU. It paralyzes and will not respond to any mouse-
-  ; click or key press. You would have to order the operating system to close all windows of DrRacket.
+  ; click or key press. 
   (for-each kill-thread running-threads)
   (custodian-shutdown-all top-custodian)
   (close-viewport viewport)
@@ -171,16 +136,16 @@
 
 ;=====================================================================================================
 ; Internal state. The following variables can be mutated while playing. They are initialized or
-; reinitialized by procedure initialize. Reinitialization is necessary when procedure tower-of-hanoi
-; is called more than once from the same instance. Variables escape, viewport and top-custodian are
-; not mutated again after they have been initialized or reinitialized. The viewport can not yet be
-; assigned because this needs graphics to be open. Graphics is opened by procedure initialize which
-; also will open and assign the viewport. The top-custodian is shut down during termination. A shut
-; down custodian can no longer be used. Therefore the top-custodian must be reinitialized too.
-; Variable last-compute is initialized but not reinitialized. The last command given to action compute
-; is memorized and can be edited in a modal dialog during subsequent calls.
+; reinitialized by procedure initialize. Reinitialization is necessary when the GUI is called more
+; than once from the same instantiation. Variables escape, viewport and top-custodian are not mutated
+; again after they have been initialized or reinitialized. The viewport can not yet be assigned
+; because this needs graphics to be open. Graphics is opened by procedure initialize which also will
+; open and assign the viewport. The top-custodian is shut down during termination. A shut down
+; custodian can no longer be used. Therefore the top-custodian must be reinitialized too. Variable
+; last-compute is initialized but not reinitialized. The last command given to action compute is
+; memorized and can be edited during subsequent calls.
 
-(DEFINE allow-intro   'mutable) ; Mutated at most once after initialization or reinitialization.
+(DEFINE allow-intro   'mutable)
 (DEFINE clock         'mutable)
 (DEFINE delay         'mutable)
 (DEFINE disk-distr    'mutable)
@@ -189,9 +154,9 @@
 (DEFINE move-count    'mutable)
 (DEFINE str-msg       'mutable)
 (DEFINE last-compute  ""      ) ; Initialized here. Not reinitialized by procedure initialize.
-(DEFINE escape        'delayed) ; Not mutated after initialization or reinitialization.
-(DEFINE top-custodian 'delayed) ; Not mutated after initialization or reinitialization.
-(DEFINE viewport      'delayed) ; Not mutated after initialization or reinitialization.
+(DEFINE escape        'delayed)
+(DEFINE top-custodian 'delayed)
+(DEFINE viewport      'delayed)
 
 ;=====================================================================================================
 ; Initialize or reinitialize mutable variables and buttons with content.
@@ -245,7 +210,7 @@
         (else
           (raise-user-error '|Parameter idle-limit|
             "\n  Exact positive integer ~s<=time<=~s wanted.\n  Given ~s"
-            min-idle-minutes max-idle-minutes time))))
+            min-idle-minutes  max-idle-minutes time))))
     'parameter-idle-limit))
 
 ;=====================================================================================================
@@ -253,9 +218,9 @@
 
 (define-syntax (time-out stx)
   (syntax-case stx ()
-    ((_ #f expr ...) (syntax (time-out-proc #f (λ () expr ...))))
-    ((_ #t expr ...) (syntax (time-out-proc #t (λ () expr ...))))
-    ((_    expr ...) (syntax (time-out-proc #f (λ () expr ...))))))
+    ((_ #f expr ...) #'(time-out-proc #f (λ () expr ...)))
+    ((_ #t expr ...) #'(time-out-proc #t (λ () expr ...)))
+    ((_    expr ...) #'(time-out-proc #f (λ () expr ...)))))
 
 (define not-finished (string->uninterned-symbol "not-finished"))
 
@@ -278,9 +243,7 @@
           ((clear-string viewport) posn-warn1 str-warn1)
           ((clear-string viewport) posn-warn2 str-warn2))
         (apply values result))))              ; Return the result, possibly a multiple value.
-  (parameterize
-    ((current-eventspace (make-eventspace))
-     (current-custodian custodian))
+  (parameterize ((current-eventspace (make-eventspace)))
     (handle-thread
       (thread
         (λ () (set-box! result-box (call-with-values thunk list)))
@@ -299,9 +262,7 @@
 
 ;=====================================================================================================
 ; Variables that can and some of which must be defined in early stage because they are referenced in
-; early stage. A variable cannot be referenced before it is defined. Notice that variables within the
-; body of a procedure are not referenced until the procedure is called. In its body a procedure can
-; have variables yet to be defined. 
+; early stage and a variable cannot be referenced before it is defined.
 
 (define base-size        20                                        )
 (define border           (* 3 base-size)                           )
@@ -337,9 +298,9 @@
   (str-long       " long "      )
   (str-circular   " circular "  )
   (str-compute    " Compute "   ))
-
+  
 ;=====================================================================================================
-; Buttons. They are structures with procedure property. A button contains name, position, region and a
+; Buttons. They have procedure property. A button contains its name, its position, its region and a
 ; boolean indicating whether or not it is enabled. Some buttons contain a content too. When called
 ; with action in-button? procedures button1 and button2 receive a posn for argument pos cq arg.
 
@@ -377,14 +338,15 @@
 (define (make-button name position (content #f))
   ; Constructor make-button is called either without content or with a true content, never false.
   ; Hence, when content is #f, a button without content must be made, else one with content.
-  (define region   (make-region position button-width button-hght))
-  (define str-name (symbol->string name)                          )
-  (define enabled  #t                                             )
-  (cond
-    (content (make-button2 enabled region position str-name content))
-    (else    (make-button1 enabled region position str-name        ))))
+  (let
+    ((region (make-region position button-width button-hght))
+     (str-name (symbol->string name))
+     (enabled #t))
+    (cond
+      (content (make-button2 enabled region position str-name content))
+      (else    (make-button1 enabled region position str-name     )))))
 
-; Buttons can be disabled and enabled. Argument enable/disable always is 'enable or 'disable.
+; Buttons can be disabled and enabled.
 
 (define (enable/disable-buttons buttons enable/disable)
   (for ((button (in-list buttons))) (button enable/disable)))
@@ -395,14 +357,14 @@
 (define-syntax (dispatch-button stx)
   (syntax-case stx (else)
     ((_ pos (button action ...) ... (else else-action ...))
-     (syntax (let ((p pos))
-               (cond
-                 ((button 'in-button? p) action ...) ...
-                 (else else-action ...)))))
+     #'(let ((p pos))
+         (cond
+           ((button 'in-button? p) action ...) ...
+           (else else-action ...))))
     ((_ pos (button action ...) ...)
-     (syntax (let ((p pos))
-               (cond
-                 ((button 'in-button? p) action ...) ...))))))
+     #'(let ((p pos))
+         (cond
+           ((button 'in-button? p) action ...) ...)))))
 
 (define (dispatch pos)
   (dispatch-button pos
@@ -535,11 +497,11 @@
 ; Lay out of the GUI. Positions and dimensions of all objects to be drawn in the GUI.
 
 (define (posn-add pos width height) (make-posn (+ (posn-x pos) width) (+ (posn-y pos) height)))
-(define button-w+b  (+ button-width base-size)                                )
-(define peg-y  (* 2 (+ border button-hght))                                   )
-(define peg-height  (+ peg-top max-tower-height)                              )
-(define vp-width    (+ (* 3 max-disk-width) (* 4 border) (* 2 base-size))     )
-(define vp-height   (+ (* 2 button-hght   ) (* 3 border) peg-height base-size))
+(define button-w+b  (+ button-width base-size))
+(define peg-y  (* 2 (+ border button-hght)))
+(define peg-height  (+ peg-top max-tower-height))
+(define vp-width    (+ (* 3 max-disk-width)   (* 2 base-size ) (* 4 border)))
+(define vp-height   (+ (* 2 button-hght) (* 3 border) peg-height base-size))
 
 (define (peg-x p)
   (+ border
@@ -563,11 +525,11 @@
   (make-posn border border)
   (λ (pos) (posn-add pos button-w+b 0)))
 
-(define posn-move-count (posn-add  posn-idle button-w+b (- (* 2  button-hght) str-offset))           )
+(define posn-move-count (posn-add  posn-idle button-w+b (- (* 2  button-hght) str-offset)))
 (define posn-warn1      (posn-add  posn-compute button-w+b (- (+ button-hght  str-offset) base-size)))
-(define posn-warn2      (posn-add  posn-warn1 0 base-size)                                           )
-(define posn-warn3      (posn-add  posn-warn2 0 base-size)                                           )
-(define posn-girder     (make-posn border (- vp-height border base-size))                            )
+(define posn-warn2      (posn-add  posn-warn1 0 base-size))
+(define posn-warn3      (posn-add  posn-warn2 0 base-size))
+(define posn-girder     (make-posn border (- vp-height border base-size)))
 
 ;=====================================================================================================
 ; A region records the position and dimensions of objects whose clicks must be dispatched.
@@ -576,9 +538,9 @@
   #:omit-define-syntaxes
   #:constructor-name make-region)
 
-(define (in-region? position region)
-  (define x (posn-x position))
-  (define y (posn-y position))
+(define (in-region? pos region)
+  (define x (posn-x pos))
+  (define y (posn-y pos))
   (define x-min (posn-x  (region-pos    region)))
   (define y-min (posn-y  (region-pos    region)))
   (define x-max (+ x-min (region-width  region)))
@@ -592,8 +554,7 @@
          (make-posn
            (+ border base-size)
            (- vp-height border base-size peg-height)))
-       (regions '())
-       #:result regions)
+       (regions '()) #:result regions)
       ((n (in-range 3)))
       (values
         (posn-add pos (+ max-disk-width border) 0)
@@ -735,7 +696,7 @@
 
 ;=====================================================================================================
 ; Action mode. When finishing mode short, long or circular, notify the user. Disable/enable all
-; buttons, reset, quit and cancel excepted. These allow aborting the action.
+; buttons, reset, quit and cancel excepted. The latter allow aborting the action.
 
 (define (finish who)
   (time-out #t (message-box who "\n\n\nfinished\n\n\n" #f '(ok no-icon)))
@@ -782,7 +743,7 @@
 (define (short)
   (reset-time-and-move-counter)
   (let/cc cc
-    ; The exit allows procedure move-disk to stop from the action.
+    ; The exit allows procedure move-disk to quit from the action.
     (define (exit) (clear-msg) (cc))
     (define distr
       (for*/list
@@ -1106,13 +1067,12 @@
 
 (define-syntax (accept-cancel stx)
   (syntax-case stx ()
-    ((_ expr) (syntax (accept-cancel-thunk (λ () expr))))))
+    ((_ expr) #'(accept-cancel-thunk (λ () expr)))))
 
 (define (accept-cancel-thunk thunk)
   (define result-box (box #f))
-  (define custodian (make-custodian top-custodian))
   (define task
-    (parameterize ((current-custodian custodian))
+    (parameterize ((current-custodian (make-custodian top-custodian)))
       (thread (λ () (set-box! result-box (call-with-values thunk list))))))
   (let loop ()
     (sleep 1)
@@ -1123,7 +1083,6 @@
       ((and click (button-cancel 'in-button? (mouse-click-posn click)))
        (for-each kill-thread running-threads)
        (kill-thread task)
-       (custodian-shutdown-all custodian)
        #f)
       (else (loop)))))
 
@@ -1154,7 +1113,7 @@
       (<= 0 t 2)
       (not (= f t))
       (let ((expt3h (expt 3 h)))
-        (< 0 m (case SLC ((S) (arithmetic-shift 1 h)) ((L) expt3h) ((C) (add1 expt3h))))))
+        (< 0 m (case SLC ((S) (expt 2 h)) ((L) expt3h) ((C) (add1 expt3h))))))
     (begin (set!-values (SLC h M m f t) (values 'wrong #f #f #f #f #f)))))
 
 (define (action-compute)
@@ -1262,6 +1221,7 @@
   ((clear-string viewport) posn-warn1 str)
   ((clear-string viewport) posn-warn2 compute-warn2)
   ((clear-string viewport) posn-warn3 compute-warn3))
+  
 ;=====================================================================================================
 ; Parallelization of the computation of distribution of disks by action-compute.
 ; Implemented with threads.
@@ -1283,44 +1243,44 @@
 (define-syntax (posi// stx)
   (syntax-case stx ()
     ((_ m h f t posi)
-     (syntax (cond
-               ((< h //limit) ; if n<//limit, then parallelization is not worth the effort.
-                (for/list ((d (in-range h))) (posi m h d f t)))
-               (else
-                 (define pool (make-parallel-thread-pool))
-                 (define threads
-                   (for/list ((r (in-list (ranges h))))
-                     (thread
-                       (λ ()
-                         (for/list ((d (in-range (car r) (cadr r))))
-                           (posi m h d f t)))
-                       #:pool pool
-                       #:keep 'results)))
-                 (set! running-threads threads)
-                 (apply append (map thread-wait threads))))))
+     #'(cond
+         ((< h //limit) ; if n<//limit, then parallelization is not worth the effort.
+          (for/list ((d (in-range h))) (posi m h d f t)))
+         (else
+           (define pool (make-parallel-thread-pool))
+           (define threads
+             (for/list ((r (in-list (ranges h))))
+               (thread
+                 (λ ()
+                   (for/list ((d (in-range (car r) (cadr r))))
+                     (posi m h d f t)))
+                 #:pool pool
+                 #:keep 'results)))
+           (set! running-threads threads)
+           (apply append (map thread-wait threads)))))
     ((_ h (m f t posi))
-     (syntax (cond
-               ((< h //limit)
-                (for/list ((d (in-range h))) (posi m d f t)))
-               (else
-                 (define pool (make-parallel-thread-pool))
-                 (define threads
-                   (for/list ((r (in-list (ranges h))))
-                     (thread
-                       (λ ()
-                         (for/list ((d (in-range (car r) (cadr r))))
-                           (posi m d f t)))
-                       #:pool pool
-                       #:keep 'results)))
-                 (set! running-threads threads)
-                 (apply append (map thread-wait threads))))))))
+     #'(cond
+         ((< h //limit)
+          (for/list ((d (in-range h))) (posi m d f t)))
+         (else
+           (define pool (make-parallel-thread-pool))
+           (define threads
+             (for/list ((r (in-list (ranges h))))
+               (thread
+                 (λ ()
+                   (for/list ((d (in-range (car r) (cadr r))))
+                     (posi m d f t)))
+                 #:pool pool
+                 #:keep 'results)))
+           (set! running-threads threads)
+           (apply append (map thread-wait threads)))))))
 
 ;=====================================================================================================
 ; Action compute short.
 
 (define (compute-short h m f t)
-  (define (exp2 n) (arithmetic-shift 1 n))
-  (define (mod2 n) (bitwise-and n 1))
+  (define (exp2 n) (expt 2 n))
+  (define (mod2 n) (modulo n 2))
   (define (mod3 n) (modulo n 3))
   (define (pari n) (add1 (mod2 (add1 n))))
   (define (rotd h d f t) (mod3 (* (- t f) (pari (- h d)))))
@@ -1344,7 +1304,7 @@
 (define (compute-long h m f t)
   (define (exp3 n) (expt 3 n))
   (define (mod3 n) (modulo n 3))
-  (define (mod4 n) (bitwise-and n 3))
+  (define (mod4 n) (modulo n 4))
   (define (thrd m   f t) (if (odd? m) t f))
   (define (onto m h f t) (posi m (disk m) f t))
   (define (from m h f t) (- 3 (onto m h f t) (thrd m f t)))
@@ -1361,18 +1321,10 @@
       ((0) f)
       ((1 3) (- 3 f t))
       ((2) t)))
-  ; Alas, with a large number of disks (exp3 d) and (exp3 (add1 d)) become expensive with growing
-  ; value of d (up to (expt 3 h)). As in principle d traverses the range 0..(expt 3 h) in strict
-  ; increasing order, one would think that memorizing the last computed (exp3 (add1 d)) would speed up
-  ; but as procedure mcnt may be called in parallel threads, there is little chance it is called with
-  ; strict increasing order of d. Within each thread procedure mcnt is called with strict increasing
-  ; order of d. Memorizing (exp3 (add1 d)) would require every thread to have its own definition of
-  ; parts of procedure compute-long, which would be expensive too and is rather complicated. Therefore
-  ; no attempt to avoid exponentiation of the same d twice. 
   (define (mcnt m d)
     (+
-      (mod3 (quotient m (exp3       d)))
-      (* 2  (quotient m (exp3 (add1 d))))))
+      (* 2  (quotient m (exp3 (add1 d))))
+      (mod3 (quotient m (exp3       d)))))
   (values
     (disk m)
     (from m h f t)
@@ -1419,7 +1371,9 @@
 
 ; Commented out?
 #;
-(begin   (require test/test)
+(begin 
+  
+  (require test/test)
 
   (test 1
     ((define a 1)
@@ -1585,6 +1539,7 @@
     ((define-values (a a) #f))
     '()
     #:error "define-values: duplicate identifier")
+  
   ; Commented out?
   
   (begin
@@ -1601,7 +1556,7 @@
       #:exn #f
       #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
    Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
-    
+  
     (test 20 ; To pass this test button quit must be used close the GUI, possibly after other actions.
       ((displayln "Test 20 is running. To pass this test button quit must be used" out-port)
        (displayln "to close the GUI, possibly after other actions.\n" out-port)
