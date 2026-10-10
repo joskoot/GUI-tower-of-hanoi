@@ -233,7 +233,7 @@ Used to make moves manually and for @seclink["Setup"]{setup} of a distribution o
 
 Calculates a move of the shortest, longest or circular path
 starting and finishing with all disks on one pin.
-The distribution of disks obtained after the move is computed too.
+Optionally the distribution of disks obtained after the move is computed too.
 Opens two dialog boxes.
 The first one is for information only and can be suppressed.
 The second one wants the following data:
@@ -241,7 +241,10 @@ The second one wants the following data:
 @inset[@tabular[
  (list
    (list @tt{mode}
-     @list["capital letter: "@tt{S}" for short, "@tt{L}" for long and "@tt{C}" for circular."])
+     @list[
+ "Letter: "@tt{S}" or "@tt{s}" for short,
+ "@tt{L}" or "@tt{l}" for long and
+ "@tt{C}" or "@tt{c}" for circular."])
    (list @tt{h} "number of disks: exact positive integer.")
    (list @tt{m} "move number: expression yielding a positive exact integer.")
    (list @tt{f} @list["starting peg: "@tt{0}", "@tt{1}" or "@tt{2}"."])
@@ -250,11 +253,14 @@ The second one wants the following data:
  #:column-properties '(center left)
  #:sep (hspace 2)]]
 
+Given mode @tt{S}, @tt{L} or @tt{C},
+the resulting distribution of disks among the pegs is computed and shown.
+This distribution is not computed with modes @tt{s}, @tt{l} and @tt{c}.
 If @tt{m} not already is a an exact positive integer,
 it is assumed to be an expression and is evaluated with procedure @racket[eval] in a
 @seclink["Namespaces" #:doc '(lib "scribblings/reference/reference.scrbl")]{base-namespace}
 to which variable @tt{h} is added.
-Moves are counted starting from 1.
+Moves are counted starting @nb{from 1.}
 The move number @tt{m} and height @tt{h} must satisfy the following inequalities:
 
 @inset{@tabular[
@@ -266,7 +272,7 @@ The move number @tt{m} and height @tt{h} must satisfy the following inequalities
 
 The data provided by the user are memorised between successive compute actions and between
 successive calls to procedure @racket[tower-of-hanoi].
-There is no limit to the number of disks, but a very large height, say 1000000 disks,
+There is no limit to the number of disks, but a very large height, say a million disks,
 can take some time, involving exact numeric operations on very large numbers,
 about 10@↑[@(format "~s" (order-of-magnitude (expt 3 1000000)))].
 @nb{For reasonable} heights, say up to 10000 disks,
@@ -278,13 +284,15 @@ des@element['roman ?-]ti@element['roman ?-]na@element['roman ?-]tion peg,
 the remaining third peg and finally back to the starting peg.
 For example:
 
-@inset{@tt{C 10000 (* 2 (expt 3 (sub1 h))) 0 1}}
+@inset{@tt{C 100000 (* 2 (expt 3 (sub1 h))) 0 1}}
 
-After this move all 10000 disks are at peg 2.
+After this move all 100000 disks are at peg 2.
 
 @note{The computation of the resulting distribution of disks is parallelized
  by means of threads. On my computer with 6 cores and 12 logical processors
- running at almost 5 GHz the computation lasts roughly 1 ms per disk.}
+ running at almost 5 GHz the above command takes about 2 minutes.
+ Most of the time is spent on calculating exponents of 3 up to 3@superscript{100000}
+ involving numbers of magnitude up to @(format "~s" (order-of-magnitude (expt 3 100000))).}
 
 @section[#:style '(unnumbered)]{Appendix}
 
