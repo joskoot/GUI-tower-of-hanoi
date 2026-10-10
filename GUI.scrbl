@@ -286,10 +286,23 @@ For example:
 
 @inset{@tt{C 100000 (* 2 (expt 3 (sub1 h))) 0 1}}
 
+Shows:
+
+@note{@tt{@smaller{
+   Results for move (* 2 (expt 3 (sub1 h))) of path C with 100000 disks@(lb)
+   from peg 0 via peg 1 and peg 2 back to peg 0@(lb)
+   Move disk 0 from peg 0 to peg 2@(lb)
+   Resulting distribution of disks:@(lb)
+   Positions of disks in order of increasing size:@(lb)
+   22222222222222222222222222222222222222222222222222@(lb)
+   22222222222222222222222222222222222222222222222222@(lb)
+   22222222222222222222222222222222222222222222222222@(lb)
+   etc. (100000 twos)}}}
+
 After this move all 100000 disks are at peg 2.
 
 @note{The computation of the resulting distribution of disks is parallelized
- by means of threads. On my computer with 6 cores and 12 logical processors
+ by means of threads. @nb{On my computer} with 6 cores and 12 logical processors
  running at almost 5 GHz the above command takes about 2 minutes.
  Most of the time is spent on calculating exponents of 3 up to 3@superscript{100000}
  involving numbers of magnitude up to @(format "~s" (order-of-magnitude (expt 3 100000))).}
