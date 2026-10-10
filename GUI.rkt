@@ -1240,8 +1240,8 @@
                 ((C)
                  (format
                    "Results for move ~a of path C with ~s disks\n~
-                   from peg ~s via peg ~s and peg ~s back to peg ~s\n\n~
-                   Move disk ~s from peg ~s to peg ~s\n\n~
+                   from peg ~s via peg ~s and peg ~s back to peg ~s.\n\n~
+                   Move disk ~s from peg ~s to peg ~s.\n\n~
                    Resulting distribution of disks:\n~
                    Positions of disks in order of increasing size:\n\n~a\n"
                    M h f t (- 3 f t) f d ff tt distr-str))
@@ -1256,8 +1256,8 @@
                 ((c)
                  (format
                    "Results for move ~a of path c with ~s disks\n~
-                   from peg ~s via peg ~s and peg ~s back to peg ~s\n\n~
-                   Move disk ~s from peg ~s to peg ~s\n"
+                   from peg ~s via peg ~s and peg ~s back to peg ~s.\n\n~
+                   Move disk ~s from peg ~s to peg ~s.\n"
                    M h f t (- 3 f t) f d ff tt))
                 ((s l)
                  (format

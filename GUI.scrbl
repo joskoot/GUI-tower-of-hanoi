@@ -288,18 +288,10 @@ For example:
 
 Shows:
 
-@note{@tt{@smaller{
-   Results for move (* 2 (expt 3 (sub1 h))) of path C with 100000 disks@(lb)
-   from peg 0 via peg 1 and peg 2 back to peg 0@(lb)
-   Move disk 0 from peg 0 to peg 2@(lb)
-   Resulting distribution of disks:@(lb)
-   Positions of disks in order of increasing size:@(lb)
-   22222222222222222222222222222222222222222222222222@(lb)
-   22222222222222222222222222222222222222222222222222@(lb)
-   22222222222222222222222222222222222222222222222222@(lb)
-   etc. (100000 twos)}}}
+@inset{@image["C100000.gif" #:scale 0.75]}
 
-After this move all 100000 disks are at peg 2.
+After this move all 100000 disks are at peg 2. Not all of the resulting@(lb)
+distribution of disks is visible but can be seen by scrolling down.
 
 @note{The computation of the resulting distribution of disks is parallelized
  by means of threads. @nb{On my computer} with 6 cores and 12 logical processors
