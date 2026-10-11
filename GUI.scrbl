@@ -232,7 +232,7 @@ Used to make moves manually and for @seclink["Setup"]{setup} of a distribution o
 @subsection[#:tag "Compute"]{Compute}
 
 Calculates a move of the shortest, longest or circular path
-starting and finishing with all disks on one pin.
+starting and finishing with all disks on one peg.
 Optionally the distribution of disks obtained after the move is computed too.
 Opens two dialog boxes.
 The first one is for information only and can be suppressed.
@@ -376,8 +376,7 @@ along the shortest path from peg @tt{f} to peg @tt{t}
 and the resulting distribution of disks
 can be computed without recursion, in particular without dependence on previous moves
 or a solution with less disks.
-Written in @hyperlink["https://www.scheme.org/"]{Scheme} or
-@hyperlink["https://racket-lang.org/"]{Racket} as follows:
+Written in @hyperlink["https://racket-lang.org/"]{Racket} as follows:
 
 @elemtag["example" ""]
 

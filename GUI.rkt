@@ -5,9 +5,9 @@
 ;=====================================================================================================
 ;
 ; A GUI to play the game of The Tower of Hanoi (https://en.wikipedia.org/wiki/Tower_of_Hanoi). The GUI
-; has buttons. A click on a button initiates an action. Modal dialogs are used to exchange information
-; between the GUI and the user. Moves can be made manually with the mouse but also automatically by
-; the GUI. Use module "GUI.scrbl" to create documentation for the user.
+; has buttons. A click on a button initiates an action. Modal dialogs exchange information between the
+; GUI and the user. Moves can be made manually with the mouse but also automatically by the GUI.
+; Prepare user documentation with module "GUI.scrbl".
 ;
 ;=====================================================================================================
 
@@ -24,7 +24,7 @@
 ; "no bound occurrences" but it has one, as can be seen by hovering the mouse over the name of the
 ; module (racket/syntax) from which it is imported.
 
-(require  
+(require
   (only-in graphics/graphics
     (clear-solid-rectangle            clear-solid-rectangle         )
     (clear-string                     clear-string                  )
@@ -178,13 +178,13 @@
 ; is memorized and can be edited when clicking button 'compute' during subsequent calls.
 
 (define allow-intro   'mutable) ; Mutated at most once after initialization or reinitialization.
-(define clock         'mutable) 
-(define delay         'mutable) 
-(define disk-distr    'mutable) 
-(define height        'mutable) 
-(define manual-count  'mutable) 
-(define move-count    'mutable) 
-(define str-msg       'mutable) 
+(define clock         'mutable)
+(define delay         'mutable)
+(define disk-distr    'mutable)
+(define height        'mutable)
+(define manual-count  'mutable)
+(define move-count    'mutable)
+(define str-msg       'mutable)
 (define last-compute  ""      ) ; Initialized here. Not reinitialized by procedure initialize.
 (define escape        'delayed) ; Not mutated after initialization or reinitialization.
 (define top-custodian 'delayed) ; Not mutated after initialization or reinitialization.
@@ -298,7 +298,7 @@
 ; Variables that can and some of which must be defined in early stage because they are referenced in
 ; early stage. A variable cannot be referenced before it is defined. Notice that variables within the
 ; body of a procedure are not referenced until the procedure is called. In its body a procedure can
-; have variables yet to be defined. 
+; have references to variables yet to be defined.
 
 (DEFINE base-size        20                                        )
 (DEFINE border           (* 3 base-size)                           )
@@ -794,10 +794,10 @@
         ((null? distr))
         ((= (car distr) dest) (short (cdr distr) dest))
         (else
-          (DEFINE new-conf (- 3 (car distr) dest))
-          (short (cdr distr) new-conf)
+          (DEFINE new-dest (- 3 (car distr) dest))
+          (short (cdr distr) new-dest)
           (move-disk (car distr) dest exit)
-          (short (make-list (length (cdr distr)) new-conf) dest))))
+          (short (make-list (length (cdr distr)) new-dest) dest))))
     (short distr 2)))
 
 ;=====================================================================================================
@@ -1038,8 +1038,7 @@
   (set! disk-distr (vector (range height) '() '()))
   (remove-all-disks) ; Also draws the pegs that where hidden behind disks.
   (reset-manual-count)
-  (for ((d (in-range height)) (h (in-reversed-range height)))
-    (draw-disk d h 0)))
+  (for ((d (in-range height)) (h (in-reversed-range height))) (draw-disk d h 0)))
 
 ;=====================================================================================================
 ; Action setup.
@@ -1127,7 +1126,6 @@
       (else (loop)))))
 
 (DEFINE buttons-for-action-compute (remove button-cancel all-buttons))
-
 (DEFINE namespace (make-base-namespace))
 (DEFINE (catch-exn-for-compute e) (set! SLC 'wrong))
 (DEFINE nr-of-disks-per-line 50)
@@ -1154,7 +1152,7 @@
       (not (= f t))
       (let ((expt3h (expt 3 h)))
         (< 0 m (case SLC ((S s) (arithmetic-shift 1 h)) ((L l) expt3h) ((C c) (add1 expt3h))))))
-    (begin (set!-values (SLC h M m f t) (values 'wrong #f #f #f #f #f)))))
+    (set!-values (SLC h M m f t) (values 'wrong #f #f #f #f #f))))
 
 (DEFINE (action-compute)
   (DEFINE-VALUES (ok answer)
@@ -1388,7 +1386,7 @@
   ; strict increasing order of d. Within each thread procedure mcnt is called with strict increasing
   ; order of d. Memorizing (exp3 (add1 d)) would require every thread to have its own definition of
   ; parts of procedure compute-long, which would be expensive too and is rather complicated. Therefore
-  ; no attempt to avoid exponentiation of the same d twice. 
+  ; no attempt to avoid exponentiation of the same d twice.
   (DEFINE (mcnt m d)
     (+
       (mod3 (quotient m (exp3       d)))
@@ -1438,51 +1436,51 @@
 ; (20) requires action of the user. Follow the displayed instructions.
 
 ; Commented out?
-#;
+;#;
 (begin   (require test/test)
 
   (test 1
-    ((define a 1)
+    ((DEFINE a 1)
      (set! a 2))
     '()
     #:error "set!: cannot mutate identifier")
 
   (test 2
-    ((DEFINE a 1)
+    ((define a 1)
      (set! a 2)
      a)
     '(2))
 
   (test 3
-    ((define-values () (values)))
+    ((DEFINE-VALUES () (values)))
     #f)
 
   (test 4
-    ((define-values (a b c) (values 1 2 3))
+    ((DEFINE-VALUES (a b c) (values 1 2 3))
      (write (list a b c)))
     #f
     #:output "(1 2 3)")
 
   (test 5
-    ((define-values (a b c) (values 1 2 3))
+    ((DEFINE-VALUES (a b c) (values 1 2 3))
      (set! a 4))
     '()
     #:error "set!: cannot mutate identifier")
 
   (test 6
-    ((define-values-with-list-of-values the-list (a 1) (b 2) (c 3))
+    ((DEFINE-VALUES-WITH-LIST-OF-VALUES the-list (a 1) (b 2) (c 3))
      (list the-list a b c))
     '(((1 2 3) 1 2 3)))
 
   (test 7
-    ((define-values-accumulative () 1 add1))
+    ((DEFINE-VALUES-ACCUMULATIVE () 1 add1))
     '()
     #:error
-    "define-values-accumulative: use does not match pattern:
-    (define-values-accumulative (id ... last-id) first make-next)")
+    "DEFINE-VALUES-ACCUMULATIVE: use does not match pattern:
+    (DEFINE-VALUES-ACCUMULATIVE (id ... last-id) first make-next)")
 
   (test 8 ; Also check that the start-expr is evaluated once only.
-    ((define-values-accumulative (a b c) (begin (writeln 'start) 1)
+    ((DEFINE-VALUES-ACCUMULATIVE (a b c) (begin (writeln 'start) 1)
        (λ (x) (printf "next ~s\n" x) (add1 x)))
      (list a b c))
     '((1 2 3))
@@ -1492,7 +1490,7 @@
     ((idle-limit 0))
     '()
     #:error "Parameter idle-limit: Exact positive integer 1<=time<=10080 wanted. Given 0")
-  
+
   (test 10
     ((idle-limit 20000))
     '()
@@ -1506,11 +1504,11 @@
   (test 12
     ((idle-limit))
     '(10))
-  
+
   (test 13
-    ((define h 3)
+    ((DEFINE h 3)
      (for/list ((m (in-range 1 (expt 2 h))))
-       (call-with-values (λ () (compute-short h m 0 1)) (λ x (cons m x)))))
+       (call-with-values (λ () (compute-short h m 0 1 #t)) (λ x (cons m x)))))
     '(((1 0 0 1 (1 0 0))
        (2 1 0 2 (1 2 0))
        (3 0 1 2 (2 2 0))
@@ -1518,11 +1516,11 @@
        (5 0 2 0 (0 2 1))
        (6 1 2 1 (0 1 1))
        (7 0 0 1 (1 1 1)))))
-  
+
   (test 14
-    ((define h 3)
+    ((DEFINE h 3)
      (for/list ((m (in-range 1 (expt 3 h))))
-       (call-with-values (λ () (compute-long h m 0 1)) (λ x (cons m x)))))
+       (call-with-values (λ () (compute-long h m 0 1 #t)) (λ x (cons m x)))))
     '((( 1 0 0 2 (2 0 0))
        ( 2 0 2 1 (1 0 0))
        ( 3 1 0 2 (1 2 0))
@@ -1549,11 +1547,11 @@
        (24 1 2 1 (0 1 1))
        (25 0 0 2 (2 1 1))
        (26 0 2 1 (1 1 1)))))
-  
+
   (test 15
-    ((define h 3)
+    ((DEFINE h 3)
      (for/list ((m (in-range 1 (add1 (expt 3 h)))))
-       (call-with-values (λ () (compute-circular 3 m 0 1)) (λ x (cons m x)))))
+       (call-with-values (λ () (compute-circular 3 m 0 1 #t)) (λ x (cons m x)))))
     '((( 1 0 0 1 (1 0 0))
        ( 2 1 0 2 (1 2 0))
        ( 3 0 1 0 (0 2 0))
@@ -1597,18 +1595,18 @@
        (11 11 11 11 11 11 11 11 11 11))))
 
   (test 17
-    ((define 1 2))
+    ((DEFINE 1 2))
     '()
     #:error "define: not an identifier")
 
   (test 18
-    ((define-values (a a) #f))
+    ((DEFINE-VALUES (a a) #f))
     '()
     #:error "define-values: duplicate identifier")
   ; Commented out?
-  #;
+ ; #;
   (begin
-    (define out-port (current-output-port))
+    (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")
     (displayln "Test 20 passes only when you use the quit button to quit from the GUI.\n")
 
@@ -1621,7 +1619,7 @@
       #:exn #f
       #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
    Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
-    
+
     (test 20 ; To pass this test button quit must be used close the GUI, possibly after other actions.
       ((displayln "Test 20 is running. To pass this test button quit must be used" out-port)
        (displayln "to close the GUI, possibly after other actions.\n" out-port)
