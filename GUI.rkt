@@ -17,52 +17,52 @@
 (require (for-syntax racket/base))
 
 ;=====================================================================================================
-; Apart from importing all of racket/base, no more is imported than necessary. Using DrRacket with
-; background expansion enabled, hovering the mouse over a variable in the column at the right of the
-; require form shows its number of bound occurrences and arrows to these occurrences. Omitting one
-; single binding makes the program invalid. Hovering the mouse over 'generate temporary' says
-; "no bound occurrences" but it has one, as can be seen by hovering the mouse over the name of the
-; module (racket/syntax) from which it is imported.
+; Apart from importing all of racket/basefor both phase 0 and phase 1, no more is imported than
+; necessary. Using DrRacket with background expansion enabled, hovering the mouse over a variable in
+; the column at the right of the require form shows its number of bound occurrences and arrows to
+; these ccurrences. Omitting one single binding makes the program invalid. Hovering the mouse over
+; 'generate temporary' says "no bound occurrences" but it has one, as can be seen by hovering the
+; mouse over the name of the module ('racket/syntax') from which it is imported.
 
 (require
   (only-in graphics/graphics
-    (clear-solid-rectangle            clear-solid-rectangle         )
-    (clear-string                     clear-string                  )
-    (close-graphics                   close-graphics                )
-    (draw-rectangle                   draw-rectangle                )
-    (draw-solid-rectangle             draw-solid-rectangle          )
-    (draw-string                      draw-string                   )
-    (get-mouse-click                  get-mouse-click               )
-    (get-string-size                  get-string-size               )
-    (make-posn                        make-posn                     )
-    (make-rgb                         make-rgb                      )
-    (mouse-click-posn                 mouse-click-posn              )
-    (open-graphics                    open-graphics                 )
-    (open-pixmap                      open-pixmap                   )
-    (open-viewport                    open-viewport                 )
-    (posn-x                           posn-x                        )
-    (posn-y                           posn-y                        )
-    (ready-mouse-click                ready-mouse-click             )
-    (viewport-flush-input             viewport-flush-input          ))
+    (clear-solid-rectangle            clear-solid-rectangle)
+    (clear-string                     clear-string         )
+    (close-graphics                   close-graphics       )
+    (draw-rectangle                   draw-rectangle       )
+    (draw-solid-rectangle             draw-solid-rectangle )
+    (draw-string                      draw-string          )
+    (get-mouse-click                  get-mouse-click      )
+    (get-string-size                  get-string-size      )
+    (make-posn                        make-posn            )
+    (make-rgb                         make-rgb             )
+    (mouse-click-posn                 mouse-click-posn     )
+    (open-graphics                    open-graphics        )
+    (open-pixmap                      open-pixmap          )
+    (open-viewport                    open-viewport        )
+    (posn-x                           posn-x               )
+    (posn-y                           posn-y               )
+    (ready-mouse-click                ready-mouse-click    )
+    (viewport-flush-input             viewport-flush-input ))
   (only-in racket/gui/base
-    (current-eventspace               current-eventspace            )
-    (get-choices-from-user            get-choices-from-user         )
-    (get-text-from-user               get-text-from-user            )
-    (make-eventspace                  make-eventspace               )
-    (message+check-box                message+check-box             )
-    (message-box                      message-box                   )
-    (message-box/custom               message-box/custom            ))
+    (current-eventspace               current-eventspace   )
+    (get-choices-from-user            get-choices-from-user)
+    (get-text-from-user               get-text-from-user   )
+    (make-eventspace                  make-eventspace      )
+    (message+check-box                message+check-box    )
+    (message-box                      message-box          )
+    (message-box/custom               message-box/custom   ))
   (only-in racket
-    (infinite?                        infinite?                     )
-    (make-list                        make-list                     )
-    (processor-count                  processor-count               )
-    (range                            range                         )
-    (~r                               ~r                            ))
+    (infinite?                        infinite?            )
+    (make-list                        make-list            )
+    (processor-count                  processor-count      )
+    (range                            range                )
+    (~r                               ~r                   ))
   (for-syntax
     (only-in racket/syntax
-      (generate-temporary             generate-temporary            ))
+      (generate-temporary             generate-temporary   ))
     (only-in syntax/transformer
-      (make-variable-like-transformer make-variable-like-transformer))))
+      (make-variable-like-transformer make-var-like-trafo  ))))
 
 ;=====================================================================================================
 ; Syntaxes DEFINE and DEFINE-VALUES are like define and define-values but produce immutable variables.
@@ -77,7 +77,7 @@
        (if (identifier? (syntax head))
          (syntax head)
          (extract-id (syntax head))))
-      (_ (raise-syntax-error 'define "not an identifier" stx head))))
+      (_ (raise-syntax-error 'DEFINE "not an identifier" stx head))))
   (syntax-case stx ()
     ((_ id value)
      (identifier? (syntax id))
@@ -85,7 +85,7 @@
        (syntax
          (begin
            (define var value)
-           (define-syntax id (make-variable-like-transformer (syntax var)))))))
+           (define-syntax id (make-var-like-trafo (syntax var)))))))
     ((_ head body ...)
      (with-syntax ((id (extract-id (syntax head))))
        (syntax (DEFINE id (let () (define head body ...) id)))))))
@@ -95,10 +95,10 @@
     (cond
       ((null? ids) #t)
       ((identifier? (car ids)) (check-identifiers (cdr ids)))
-      (else (raise-syntax-error 'define-values "not an identifier" stx (car ids)))))
+      (else (raise-syntax-error 'DEFINE-VALUES "not an identifier" stx (car ids)))))
   (define (check-duplicates ids)
     (define dupid (check-duplicate-identifier ids))
-    (when dupid (raise-syntax-error 'define-values "duplicate identifier" stx dupid)))
+    (when dupid (raise-syntax-error 'DEFINE-VALUES "duplicate identifier" stx dupid)))
   (syntax-case stx ()
     ((_ (id ...) expr)
      (let ((ids (syntax->list (syntax (id ...)))))
@@ -108,7 +108,7 @@
          (syntax
            (begin
              (define-values (var ...) expr)
-             (define-syntax id (make-variable-like-transformer (syntax var))) ...)))))))
+             (define-syntax id (make-var-like-trafo (syntax var))) ...)))))))
 
 ;=====================================================================================================
 
@@ -1436,7 +1436,7 @@
 ; (20) requires action of the user. Follow the displayed instructions.
 
 ; Commented out?
-;#;
+#;
 (begin   (require test/test)
 
   (test 1
@@ -1597,14 +1597,14 @@
   (test 17
     ((DEFINE 1 2))
     '()
-    #:error "define: not an identifier")
+    #:error "DEFINE: not an identifier")
 
   (test 18
     ((DEFINE-VALUES (a a) #f))
     '()
-    #:error "define-values: duplicate identifier")
+    #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
- ; #;
+  #;
   (begin
     (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")
@@ -1618,7 +1618,7 @@
       '()
       #:exn #f
       #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
-   Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
+      Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
 
     (test 20 ; To pass this test button quit must be used close the GUI, possibly after other actions.
       ((displayln "Test 20 is running. To pass this test button quit must be used" out-port)
