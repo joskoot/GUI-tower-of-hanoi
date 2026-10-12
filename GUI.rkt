@@ -22,50 +22,52 @@
 ; the column at the right of the require form shows its number of bound occurrences and arrows to
 ; these ccurrences. Omitting one single binding makes the program invalid. Hovering the mouse over
 ; 'generate temporary' says "no bound occurrences" but it has one, as can be seen by hovering the
-; mouse over the name of the module ('racket/syntax') from which it is imported.
+; mouse over the name of the module ('racket/syntax') from which it is imported. Despite the remark
+; "no bound occurrences", the binding cannot be omitted.
 
 (require
   (only-in graphics/graphics
-    (clear-solid-rectangle            clear-solid-rectangle)
-    (clear-string                     clear-string         )
-    (close-graphics                   close-graphics       )
-    (draw-rectangle                   draw-rectangle       )
-    (draw-solid-rectangle             draw-solid-rectangle )
-    (draw-string                      draw-string          )
-    (get-mouse-click                  get-mouse-click      )
-    (get-string-size                  get-string-size      )
-    (make-posn                        make-posn            )
-    (make-rgb                         make-rgb             )
-    (mouse-click-posn                 mouse-click-posn     )
-    (open-graphics                    open-graphics        )
-    (open-pixmap                      open-pixmap          )
-    (open-viewport                    open-viewport        )
-    (posn-x                           posn-x               )
-    (posn-y                           posn-y               )
-    (ready-mouse-click                ready-mouse-click    )
-    (viewport-flush-input             viewport-flush-input ))
+    (clear-solid-rectangle            clear-solid-rectangle         )
+    (clear-string                     clear-string                  )
+    (close-graphics                   close-graphics                )
+    (draw-rectangle                   draw-rectangle                )
+    (draw-solid-rectangle             draw-solid-rectangle          )
+    (draw-string                      draw-string                   )
+    (get-mouse-click                  get-mouse-click               )
+    (get-string-size                  get-string-size               )
+    (make-posn                        make-posn                     )
+    (make-rgb                         make-rgb                      )
+    (mouse-click-posn                 mouse-click-posn              )
+    (open-graphics                    open-graphics                 )
+    (open-pixmap                      open-pixmap                   )
+    (open-viewport                    open-viewport                 )
+    (posn-x                           posn-x                        )
+    (posn-y                           posn-y                        )
+    (ready-mouse-click                ready-mouse-click             )
+    (viewport-flush-input             viewport-flush-input          ))
   (only-in racket/gui/base
-    (current-eventspace               current-eventspace   )
-    (get-choices-from-user            get-choices-from-user)
-    (get-text-from-user               get-text-from-user   )
-    (make-eventspace                  make-eventspace      )
-    (message+check-box                message+check-box    )
-    (message-box                      message-box          )
-    (message-box/custom               message-box/custom   ))
+    (current-eventspace               current-eventspace            )
+    (get-choices-from-user            get-choices-from-user         )
+    (get-text-from-user               get-text-from-user            )
+    (make-eventspace                  make-eventspace               )
+    (message+check-box                message+check-box             )
+    (message-box                      message-box                   )
+    (message-box/custom               message-box/custom            ))
   (only-in racket
-    (infinite?                        infinite?            )
-    (make-list                        make-list            )
-    (processor-count                  processor-count      )
-    (range                            range                )
-    (~r                               ~r                   ))
+    (infinite?                        infinite?                     )
+    (make-list                        make-list                     )
+    (processor-count                  processor-count               )
+    (range                            range                         )
+    (~r                               ~r                            ))
   (for-syntax
     (only-in racket/syntax
-      (generate-temporary             generate-temporary   ))
+      (generate-temporary             generate-temporary            ))
     (only-in syntax/transformer
-      (make-variable-like-transformer make-var-like-trafo  ))))
+      (make-variable-like-transformer make-variable-like-transformer))))
 
 ;=====================================================================================================
 ; Syntaxes DEFINE and DEFINE-VALUES are like define and define-values but produce immutable variables.
+; Other syntaxes whose names begin with the capitalized word 'DEFINE' produce immutable variables too.
 ; Syntaxes define and define-values produce mutable variables. The value of an immutable variable can
 ; be mutable, for example a mutable vector or a structure with mutable fields. The phrase "immutable
 ; variable" sounds like a contradictio in terminis. (☺)
@@ -85,7 +87,7 @@
        (syntax
          (begin
            (define var value)
-           (define-syntax id (make-var-like-trafo (syntax var)))))))
+           (define-syntax id (make-variable-like-transformer (syntax var)))))))
     ((_ head body ...)
      (with-syntax ((id (extract-id (syntax head))))
        (syntax (DEFINE id (let () (define head body ...) id)))))))
@@ -108,7 +110,7 @@
          (syntax
            (begin
              (define-values (var ...) expr)
-             (define-syntax id (make-var-like-trafo (syntax var))) ...)))))))
+             (define-syntax id (make-variable-like-transformer (syntax var))) ...)))))))
 
 ;=====================================================================================================
 
@@ -116,6 +118,7 @@
   (in-reversed-range n)
   (in-range (sub1 n) -1 -1))
 
+;=====================================================================================================
 ; Define values with in addition a list of these values.
 
 (define-syntax-rule
@@ -124,6 +127,7 @@
     (DEFINE-VALUES (var ...) (values value ...))
     (DEFINE the-list (list var ...))))
 
+;=====================================================================================================
 ; Defines values accumulatively, each one, the first one excepted, made from the previous one by a
 ; make-next procedure. Procedure make-next is not applied to the last value.
 
@@ -263,7 +267,7 @@
   (DEFINE result-box (box not-finished))
   (DEFINE custodian (make-custodian top-custodian))
   (DEFINE (handle-thread thread)
-    (sync/timeout (* (idle-limit) 60) thread) ; Minutes to seconds.
+    (sync/timeout (* (idle-limit) 60) thread) ; Convert minutes to seconds.
     (kill-thread thread)
     (custodian-shutdown-all custodian)
     (DEFINE result (unbox result-box))
@@ -381,6 +385,7 @@
     (content (make-button2 enabled region position str-name content))
     (else    (make-button1 enabled region position str-name        ))))
 
+;=====================================================================================================
 ; Buttons can be disabled and enabled. Argument enable/disable always is 'enable or 'disable.
 
 (DEFINE (enable/disable-buttons buttons enable/disable)
@@ -532,6 +537,7 @@
 
 ;=====================================================================================================
 ; Lay out of the GUI. Positions and dimensions of all objects to be drawn in the GUI.
+; 'vp-width' and 'vp-height' are the dimensions of the viewport.
 
 (DEFINE (posn-add pos width height) (make-posn (+ (posn-x pos) width) (+ (posn-y pos) height)))
 (DEFINE button-w+b  (+ button-width base-size)                                )
@@ -562,11 +568,11 @@
   (make-posn border border)
   (λ (pos) (posn-add pos button-w+b 0)))
 
-(DEFINE posn-move-count (posn-add  posn-idle button-w+b (- (* 2  button-hght) str-offset))           )
-(DEFINE posn-warn1      (posn-add  posn-compute button-w+b (- (+ button-hght  str-offset) base-size)))
-(DEFINE posn-warn2      (posn-add  posn-warn1 0 base-size)                                           )
-(DEFINE posn-warn3      (posn-add  posn-warn2 0 base-size)                                           )
-(DEFINE posn-girder     (make-posn border (- vp-height border base-size))                            )
+(DEFINE posn-move-cnt (posn-add  posn-idle button-w+b (- (* 2  button-hght) str-offset))           )
+(DEFINE posn-warn1    (posn-add  posn-compute button-w+b (- (+ button-hght  str-offset) base-size)))
+(DEFINE posn-warn2    (posn-add  posn-warn1 0 base-size)                                           )
+(DEFINE posn-warn3    (posn-add  posn-warn2 0 base-size)                                           )
+(DEFINE posn-girder   (make-posn border (- vp-height border base-size))                            )
 
 ;=====================================================================================================
 ; A region records the position and dimensions of objects whose clicks must be dispatched.
@@ -694,13 +700,13 @@
   (clear-manual-count)
   (draw-manual-count))
 
-(DEFINE (clear-manual-count) ((clear-string viewport) posn-move-count str-msg))
+(DEFINE (clear-manual-count) ((clear-string viewport) posn-move-cnt str-msg))
 
 (DEFINE (draw-manual-count)
   (when (> manual-count 0)
     (clear-manual-count)
     (set! str-msg (format "Manual moves ~s" manual-count))
-    ((draw-string viewport) posn-move-count str-msg)))
+    ((draw-string viewport) posn-move-cnt str-msg)))
 
 (DEFINE (reset-manual-count) (clear-manual-count) (set! manual-count 0))
 
@@ -741,7 +747,7 @@
   (viewport-flush-input viewport) ; Ignore mouse-clicks made before a response on the dialog.
   (prepare/finish-action-mode 'enable)
   (button-cancel 'disable)
-  ((clear-string viewport) posn-move-count str-msg)
+  ((clear-string viewport) posn-move-cnt str-msg)
   (button-mode 'put-content manual))
 
 (DEFINE buttons-for-action-mode   ; All buttons, reset, quit and cancel excepted.
@@ -883,7 +889,7 @@
   (set! str-msg "")
   (draw-count-msg))
 
-(DEFINE (clear-msg) ((clear-string viewport) posn-move-count str-msg))
+(DEFINE (clear-msg) ((clear-string viewport) posn-move-cnt str-msg))
 
 (DEFINE (draw-count-msg)
   (clear-msg)
@@ -892,7 +898,7 @@
     (if (eq? delay click)
       (format "Move count: ~s" move-count)
       (format "Move count: ~s, real time: ~a seconds" move-count (watch-clock))))
-  ((draw-string viewport) posn-move-count str-msg))
+  ((draw-string viewport) posn-move-cnt str-msg))
 
 (DEFINE (watch-clock)
   (~r #:precision (list '= 3) (/ (- (current-inexact-milliseconds) clock) 1000)))
@@ -1054,7 +1060,7 @@
   (set! str-msg "Setting up")
   (remove-all-disks)
   (set! disk-distr (make-vector 3 '()))
-  ((draw-string viewport) posn-move-count str-msg red)
+  ((draw-string viewport) posn-move-cnt str-msg red)
   (action-setup1 (reverse (range height)))
   (enable/disable-buttons buttons-for-action-setup 'enable)
   (button-cancel 'disable)
@@ -1436,7 +1442,7 @@
 ; (20) requires action of the user. Follow the displayed instructions.
 
 ; Commented out?
-#;
+;#;
 (begin   (require test/test)
 
   (test 1
@@ -1604,7 +1610,7 @@
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
-  #;
+  ;#;
   (begin
     (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")

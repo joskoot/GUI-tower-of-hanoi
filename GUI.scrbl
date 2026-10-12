@@ -84,7 +84,8 @@ except while being moved it always is at a peg.
  @(hspace 3)@image["gui-pict.gif" #:scale 0.45]
 
  The user can instruct the GUI which action to take by clicking one of the blue buttons
- or nearby a peg. The actions are described in the sections to follow.
+ or nearby a peg.
+ The actions are described in the sections to follow.
  A button can temporarily be disabled when not applicable during the current action,
  in which case it turns white.
  For some actions the GUI asks a question in a separate modal dialog.
@@ -139,8 +140,9 @@ In fact every legal distribution of disks is visited.
 
 @ignore{
  @note{Starting from an arbitrary distribution of disks and moving all of them to the same peg with as
-  many moves as possible without traversing a distribution more than once, there always is at least
-  one way to do that, possibly less than @tt{3@↑{h}@[minus]1} moves,
+  many moves as possible without traversing a distribution more than once,
+  there always is at least one way to do that,
+  possibly less than @tt{3@↑{h}@[minus]1} moves,
   but from some distributions there are two distinct ways with the same number of moves,
   one moving the largest disk to be moved twice and one with moving that disk once.}}
 
@@ -297,7 +299,8 @@ distribution of disks is visible but can be seen by scrolling down.
  by means of threads. @nb{On my computer} with 6 cores and 12 logical processors
  running at almost 5 GHz the above command takes about 2 minutes.
  Most of the time is spent on calculating exponents of 3 up to 3@superscript{100000}
- involving numbers of magnitude up to @(format "~s" (order-of-magnitude (expt 3 100000))).}
+ involving numbers of order of magnitude up to @(format "~s" (order-of-magnitude (expt 3 100000)))
+ (almost 20kB of memory).}
 
 @section[#:style '(unnumbered)]{Appendix}
 
