@@ -4,10 +4,9 @@
 ; By Jacob J. A. Koot
 ;=====================================================================================================
 ;
-; A GUI to play the game of The Tower of Hanoi (https://en.wikipedia.org/wiki/Tower_of_Hanoi). The GUI
-; has buttons. A click on a button initiates an action. Modal dialogs exchange information between the
-; GUI and the user. Moves can be made manually with the mouse but also automatically by the GUI.
-; Prepare user documentation with module "GUI.scrbl".
+; A GUI to play the game of The Tower of Hanoi. The GUI has buttons. A click on a button initiates an
+; action. Modal dialogs exchange information between the GUI and the user. Moves can be made manually
+; with the mouse but also automatically by the GUI. Make user documentation with module "GUI.scrbl".
 ;
 ;=====================================================================================================
 
@@ -17,7 +16,7 @@
 (require (for-syntax racket/base))
 
 ;=====================================================================================================
-; Apart from importing all of racket/basefor both phase 0 and phase 1, no more is imported than
+; Apart from importing all of racket/base for both phase 0 and phase 1, no more is imported than
 ; necessary. Using DrRacket with background expansion enabled, hovering the mouse over a variable in
 ; the column at the right of the require form shows its number of bound occurrences and arrows to
 ; these ccurrences. Omitting one single binding makes the program invalid. Hovering the mouse over
@@ -68,9 +67,10 @@
 ;=====================================================================================================
 ; Syntaxes DEFINE and DEFINE-VALUES are like define and define-values but produce immutable variables.
 ; Other syntaxes whose names begin with the capitalized word 'DEFINE' produce immutable variables too.
-; Syntaxes define and define-values produce mutable variables. The value of an immutable variable can
-; be mutable, for example a mutable vector or a structure with mutable fields. The phrase "immutable
-; variable" sounds like a contradictio in terminis. (☺)
+; The value of an immutable variable can be mutable, for example a mutable vector or a structure with
+; mutable fields. Syntaxes define and define-values produce mutable variables.
+
+; The phrase "immutable variable" sounds like a contradictio in terminis. (☺)
 
 (define-syntax (DEFINE stx)
   (define (extract-id head)
@@ -79,7 +79,7 @@
        (if (identifier? (syntax head))
          (syntax head)
          (extract-id (syntax head))))
-      (_ (raise-syntax-error 'DEFINE "not an identifier" stx head))))
+      (_ (raise-syntax-error 'DEFINE "not an identifier or procedure head" stx head))))
   (syntax-case stx ()
     ((_ id value)
      (identifier? (syntax id))
@@ -88,9 +88,9 @@
          (begin
            (define var value)
            (define-syntax id (make-variable-like-transformer (syntax var)))))))
-    ((_ head body ...)
+    ((_ head body0 body ...)
      (with-syntax ((id (extract-id (syntax head))))
-       (syntax (DEFINE id (let () (define head body ...) id)))))))
+       (syntax (DEFINE id (let () (define head body0 body ...) id)))))))
 
 (define-syntax (DEFINE-VALUES stx)
   (define (check-identifiers ids)
@@ -161,11 +161,14 @@
 (DEFINE (action) (dispatch (mouse-click-posn (time-out (get-mouse-click viewport)))))
 
 (DEFINE (close)
-  ; In order to make a user break work properly, some care is required for termination of threads made
-  ; by action compute. Both the line with 'kill-thread' and that with 'custodian-shutdown-all' are
-  ; required and 'kill-thread' must precede 'custodian-shutdown-all'. Without this precaution DrRacket
-  ; won't halt, although using less than 1% of CPU. It paralyzes and will not respond to any mouse-
-  ; click or keystroke. You would have to order the operating system to close all of DrRacket.
+  ; In order to make a user break work properly when running the program in the definitions or inter-
+  ; actions window of DrRacket, some care is required for termination of threads made by action
+  ; compute. Both the line with 'kill-thread' and that with 'custodian-shutdown-all' are required and
+  ; in that order. Without this precaution DrRacket won't halt, although using less than 1% of CPU.
+  ; It paralyzes and will not respond to any mouse-click or keystroke. You would have to order the
+  ; operating system to close DrRacket. The problem does not occur when running the tower-of-hanoi
+  ; with Racket. I have observed this under Windows. I don't know what happens with other operating
+  ; systems. 
   (for-each kill-thread running-threads)
   (custodian-shutdown-all top-custodian)
   (close-graphics)) ; Closes the viewport too.
@@ -174,7 +177,7 @@
 ; Internal state. The following variables can be mutated while playing. They are initialized or
 ; reinitialized by procedure initialize. Reinitialization is necessary when procedure tower-of-hanoi
 ; is called more than once from the same instance. Variables escape, viewport and top-custodian are
-; not mutated again after they have been initialized or reinitialized. The viewport can not yet be
+; not mutated again after they have been initialized or reinitialized. The viewport cannot yet be
 ; assigned because this needs graphics to be open. Graphics is opened by procedure initialize which
 ; also will open and assign the viewport. The top-custodian is shut down during termination. A shut
 ; down custodian can no longer be used. Therefore the top-custodian must be reinitialized too.
@@ -209,18 +212,17 @@
   (set! move-count                   0)
   (set! str-msg                     "")
   (set! top-custodian (make-custodian))
-  ; Open graphics and the viewport.
+  ; Open graphics and the viewport. This must be done before the contents of the buttons are
+  ; initialized or reinitialized because the buttons eill draw their contents.
   (open-graphics)
   (set! viewport (open-viewport "Tower of Hanoi" vp-width vp-height))
-  ; Initialize or reinitialize the contents of buttons with content.
+  ; Draw the buttons. The contents of buttons with content are not yet drawn.
+  (for ((button (in-list all-buttons))) (draw-button button))
+  ; Initialize or reinitialize the contents of buttons with content. The contents are drawn too.
   (button-height 'put-content height      )
   (button-mode   'put-content manual      )
   (button-delay  'put-content delay       )
   (button-idle   'put-content (idle-limit))
-  ; Draw the buttons.
-  (for ((button (in-list all-buttons)))
-    (draw-button button)
-    (when (button2? button) (draw-button-content button (button2-content button))))
   ; Disable button cancel.
   (button-cancel 'disable)
   ; Draw the girder on which the pegs will be mounted.
@@ -1379,7 +1381,7 @@
        (upper-bound (expt 3 first-guess))
        (lowest-power-3 (gcd m upper-bound)))
       (inexact->exact (round (/ (log lowest-power-3) log3)))))
-  #;(define (disk m) (if (zero? (mod3 m)) (add1 (disk (quotient m 3))) 0))
+  ;#(define (disk m) (if (zero? (mod3 m)) (add1 (disk (quotient m 3))) 0))
   (DEFINE (posi m d f t)
     (case (mod4 (mcnt m d))
       ((0) f)
@@ -1437,9 +1439,10 @@
         ((< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
 
 ;=====================================================================================================
-; Tests. If you don't have it yet, install "https://github.com/joskoot/test.git" before testing.
-; The tests are commented out at two places marked with the line "; Commented out?". The last test
-; (20) requires action of the user. Follow the displayed instructions.
+; Some tests. The GUI itself can only be tested by playing with it. If you don't have it yet,
+; install "https://github.com/joskoot/test.git" before testing. The tests are commented out at
+; two places marked with "; Commented out?". The last test (20) requires action of the user.
+; Follow the displayed instructions.
 
 ; Commented out?
 #;
@@ -1603,7 +1606,7 @@
   (test 17
     ((DEFINE 1 2))
     '()
-    #:error "DEFINE: not an identifier")
+    #:error "DEFINE: not an identifier or procedure head")
 
   (test 18
     ((DEFINE-VALUES (a a) #f))
