@@ -19,10 +19,7 @@
 ; Apart from importing all of racket/base for both phase 0 and phase 1, no more is imported than
 ; necessary. Using DrRacket with background expansion enabled, hovering the mouse over a variable in
 ; the column at the right of the require form shows its number of bound occurrences and arrows to
-; these ccurrences. Omitting one single binding makes the program invalid. Hovering the mouse over
-; 'generate temporary' says "no bound occurrences" but it has one, as can be seen by hovering the
-; mouse over the name of the module ('racket/syntax') from which it is imported. Despite the remark
-; "no bound occurrences", the binding cannot be omitted.
+; these ccurrences. Omitting one single binding makes the program invalid.
 
 (require
   (only-in graphics/graphics
@@ -59,17 +56,20 @@
     (range                            range                         )
     (~r                               ~r                            ))
   (for-syntax
-    (only-in racket/syntax
-      (generate-temporary             generate-temporary            ))
+    (only-in racket/syntax                                             ; says  "1 bound occurrence"
+      (generate-temporary             generate-temporary            )) ; says "no bound occurrences"
     (only-in syntax/transformer
       (make-variable-like-transformer make-variable-like-transformer))))
+
+; Hovering the mouse over 'generate temporary' says "no bound occurrences" but it has one, as can be
+; seen by hovering the mouse over the name of the module (racket/syntax) from which it is imported.
+; Despite the remark "no bound occurrences", the binding cannot be omitted.
 
 ;=====================================================================================================
 ; Syntaxes DEFINE and DEFINE-VALUES are like define and define-values but produce immutable variables.
 ; Other syntaxes whose names begin with the capitalized word 'DEFINE' produce immutable variables too.
 ; The value of an immutable variable can be mutable, for example a mutable vector or a structure with
 ; mutable fields. Syntaxes define and define-values produce mutable variables.
-
 ; The phrase "immutable variable" sounds like a contradictio in terminis. (☺)
 
 (define-syntax (DEFINE stx)
@@ -184,14 +184,14 @@
 ; Variable last-compute is initialized but not reinitialized. The last command given to action compute
 ; is memorized and can be edited when clicking button 'compute' during subsequent calls.
 
+(define clock         'mutable) ; Possibly mutated more than once.
+(define delay         'mutable) ; Possibly mutated more than once.
+(define disk-distr    'mutable) ; Possibly mutated more than once.
+(define height        'mutable) ; Possibly mutated more than once.
+(define manual-count  'mutable) ; Possibly mutated more than once.
+(define move-count    'mutable) ; Possibly mutated more than once.
+(define str-msg       'mutable) ; Possibly mutated more than once.
 (define allow-intro   'mutable) ; Mutated at most once after initialization or reinitialization.
-(define clock         'mutable)
-(define delay         'mutable)
-(define disk-distr    'mutable)
-(define height        'mutable)
-(define manual-count  'mutable)
-(define move-count    'mutable)
-(define str-msg       'mutable)
 (define last-compute  ""      ) ; Initialized here. Not reinitialized by procedure initialize.
 (define escape        'delayed) ; Not mutated after initialization or reinitialization.
 (define top-custodian 'delayed) ; Not mutated after initialization or reinitialization.
@@ -1254,11 +1254,11 @@
                 ((S L)
                  (format
                    "Results for move ~a with ~s disks of path ~a\n~
-                   from peg ~s to peg ~s with ~s disks.\n\n~
+                   from peg ~s to peg ~s.\n\n~
                    Move disk ~s from peg ~s to peg ~s.\n\n~
                    Resulting distribution of disks:\n~
                    Positions of disks in order of increasing size:\n\n~a\n"
-                   M h f t (- 3 f t) f d ff tt distr-str))
+                   M h SLC f t d ff tt distr-str))
                 ((c)
                  (format
                    "Results for move ~a of path c with ~s disks\n~
@@ -1302,32 +1302,24 @@
   (for/fold ((i 1) (r '()) #:result (reverse r)) ((k (in-list d)))
     (values (+ i k) (cons (list (sub1 i) (+ i k -1)) r))))
 
-(DEFINE //limit 10001)
+(DEFINE //limit 10000)
 
 (define-syntax (posi// stx)
   (syntax-case stx ()
     ((_ m h f t posi)
-     (syntax
-       (cond
-         ((< h //limit) ; if n<//limit, then parallelization is not worth the effort.
-          (for/list ((d (in-range h))) (posi m h d f t)))
-         (else
-           (DEFINE pool (make-parallel-thread-pool))
-           (DEFINE threads
-             (for/list ((r (in-list (ranges h))))
-               (thread
-                 (λ ()
-                   (for/list ((d (in-range (car r) (cadr r))))
-                     (posi m h d f t)))
-                 #:pool pool
-                 #:keep 'results)))
-           (set! running-threads threads)
-           (apply append (map thread-wait threads))))))
+     (with-syntax ((posi-call (syntax (posi m h d f t))))
+       (syntax (posi//help m h d f t posi-call))))
     ((_ h (m f t posi))
+     (with-syntax ((posi-call (syntax (posi m   d f t))))
+       (syntax (posi//help m h d f t posi-call))))))
+
+(define-syntax (posi//help stx)
+  (syntax-case stx ()
+    ((_ m h d f t posi-call)
      (syntax
        (cond
-         ((< h //limit)
-          (for/list ((d (in-range h))) (posi m d f t)))
+         ((<= h //limit) ; if n<=//limit, then parallelization is not worth the effort.
+          (for/list ((d (in-range h))) posi-call))
          (else
            (DEFINE pool (make-parallel-thread-pool))
            (DEFINE threads
@@ -1335,7 +1327,7 @@
                (thread
                  (λ ()
                    (for/list ((d (in-range (car r) (cadr r))))
-                     (posi m d f t)))
+                     posi-call))
                  #:pool pool
                  #:keep 'results)))
            (set! running-threads threads)
@@ -1445,7 +1437,7 @@
 ; Follow the displayed instructions.
 
 ; Commented out?
-#;
+;#;
 (begin   (require test/test)
 
   (test 1
@@ -1488,7 +1480,9 @@
     "DEFINE-VALUES-ACCUMULATIVE: use does not match pattern:
     (DEFINE-VALUES-ACCUMULATIVE (id ... last-id) first make-next)")
 
-  (test 8 ; Also check that the start-expr is evaluated once only.
+  (test 8
+    ; Check that the start-expr is evaluated once only
+    ; and make-next is not applied to the last value.
     ((DEFINE-VALUES-ACCUMULATIVE (a b c) (begin (writeln 'start) 1)
        (λ (x) (printf "next ~s\n" x) (add1 x)))
      (list a b c))
@@ -1613,7 +1607,7 @@
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
-  #;
+  ;#;
   (begin
     (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")
@@ -1626,8 +1620,11 @@
        (tower-of-hanoi))
       '()
       #:exn #f
-      #:error "Tower of Hanoi No activity during 1 minute. Game aborted.
-      Use parameter idle-limit to increase the allowed idle time or use the Idle limit button.")
+      #:error
+      "Tower of Hanoi
+         No activity during 1 minute. Game aborted.
+         Use parameter idle-limit to increase the allowed
+         idle time or use the Idle limit button.")
 
     (test 20 ; To pass this test button quit must be used close the GUI, possibly after other actions.
       ((displayln "Test 20 is running. To pass this test button quit must be used" out-port)
