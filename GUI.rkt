@@ -13,13 +13,12 @@
 #lang racket/base
 
 (provide tower-of-hanoi idle-limit)
-(require (for-syntax racket/base))
 
 ;=====================================================================================================
 ; Apart from importing all of racket/base for both phase 0 and phase 1, no more is imported than
 ; necessary. Using DrRacket with background expansion enabled, hovering the mouse over a variable in
 ; the column at the right of the require form shows its number of bound occurrences and arrows to
-; these ccurrences. Omitting one single binding makes the program invalid.
+; these ccurrences. Omitting a single binding corrupts the program.
 
 (require
   (only-in graphics/graphics
@@ -56,14 +55,16 @@
     (range                            range                         )
     (~r                               ~r                            ))
   (for-syntax
+    racket/base
     (only-in racket/syntax                                             ; says  "1 bound occurrence"
       (generate-temporary             generate-temporary            )) ; says "no bound occurrences"
     (only-in syntax/transformer
       (make-variable-like-transformer make-variable-like-transformer))))
 
-; Hovering the mouse over 'generate temporary' says "no bound occurrences" but it has one, as can be
-; seen by hovering the mouse over the name of the module (racket/syntax) from which it is imported.
-; Despite the remark "no bound occurrences", the binding cannot be omitted.
+; When using DrRacket with background expansion nenabled, hovering the mouse over 'generate temporary'
+; shows "no bound occurrences" but it has one, as can be seen by hovering the mouse over the name of
+; the module (racket/syntax) from which it is imported. Despite the remark "no bound occurrences",
+; the binding cannot be omitted.
 
 ;=====================================================================================================
 ; Syntaxes DEFINE and DEFINE-VALUES are like define and define-values but produce immutable variables.
@@ -79,7 +80,7 @@
        (if (identifier? (syntax head))
          (syntax head)
          (extract-id (syntax head))))
-      (_ (raise-syntax-error 'DEFINE "not an identifier or procedure head" stx head))))
+      (_ (raise-syntax-error 'DEFINE "not an identifier" stx head))))
   (syntax-case stx ()
     ((_ id value)
      (identifier? (syntax id))
@@ -101,6 +102,16 @@
   (define (check-duplicates ids)
     (define dupid (check-duplicate-identifier ids))
     (when dupid (raise-syntax-error 'DEFINE-VALUES "duplicate identifier" stx dupid)))
+  (define (check-duplicate-identifier ids)
+    (define (loop ids seen)
+      (cond
+        ((null? ids) #f)
+        (else
+          (define id (car ids))
+          (cond
+            ((member id seen bound-identifier=?) id)
+            (else (loop (cdr ids) (cons id seen)))))))
+    (loop ids '()))
   (syntax-case stx ()
     ((_ (id ...) expr)
      (let ((ids (syntax->list (syntax (id ...)))))
@@ -1302,9 +1313,9 @@
       (DEFINE-VALUES (p q) (quotient/remainder n m))
       (append (make-list (- m q) p) (make-list q (add1 p))))))
 
-(DEFINE (ranges n) ; Converts a distribution to a list of ranges, one range for each thread.
-  (DEFINE d (distribute n (processor-count)))
-  (for/fold ((i 1) (r '()) #:result (reverse r)) ((k (in-list d)))
+(DEFINE (ranges n k) ; Converts a distribution to a list of ranges, one range for each thread.
+  (DEFINE distribution (distribute n k))
+  (for/fold ((i 1) (r '()) #:result (reverse r)) ((k (in-list distribution)))
     (values (+ i k) (cons (list (sub1 i) (+ i k -1)) r))))
 
 (DEFINE //limit 10000)
@@ -1319,7 +1330,7 @@
          (else
            (DEFINE pool (make-parallel-thread-pool))
            (DEFINE threads
-             (for/list ((r (in-list (ranges h))))
+             (for/list ((r (in-list (ranges h (processor-count)))))
                (thread
                  (λ () (for/list ((d (in-range (car r) (cadr r)))) (posi d)))
                  #:pool pool
@@ -1360,7 +1371,7 @@
   (DEFINE (thrd m   f t) (if (odd? m) t f))
   (DEFINE (onto m h f t) (posi m (disk m) f t))
   (DEFINE (from m h f t) (- 3 (onto m h f t) (thrd m f t)))
-  (DEFINE (disk m)
+  (DEFINE (disk m) ; Can yield wrong answer for very large m.
     (let*
       ((log3 (inexact->exact (log 3)))
        (first-guess (ceiling (/ (inexact->exact (log m)) log3)))
@@ -1427,11 +1438,11 @@
 ;=====================================================================================================
 ; Some tests. The GUI itself can only be tested by playing with it. If you don't have it yet,
 ; install "https://github.com/joskoot/test.git" before testing. The tests are commented out at
-; two places marked with "; Commented out?". The last test (20) requires action of the user.
+; two places marked with "; Commented out?". The last test (23) requires action of the user.
 ; Follow the displayed instructions.
 
 ; Commented out?
-#;
+;#;
 (begin   (require test/test)
 
   (test 1
@@ -1592,23 +1603,71 @@
        (11 11 11 11 11 11 11 11 11 11))))
 
   (test 17
-    ((DEFINE 1 2))
-    '()
-    #:error "DEFINE: not an identifier or procedure head")
+    ((for/and ((k (in-range 31)))
+       (define distribution (distribute k 10))
+       (writeln distribution)
+       (= (apply + distribution) k)))
+    '(#t)
+    #:output
+    "()
+     (1)
+     (1 1)
+     (1 1 1)
+     (1 1 1 1)
+     (1 1 1 1 1)
+     (1 1 1 1 1 1)
+     (1 1 1 1 1 1 1)
+     (1 1 1 1 1 1 1 1)
+     (1 1 1 1 1 1 1 1 1)
+     (1 1 1 1 1 1 1 1 1 1)
+     (1 1 1 1 1 1 1 1 1 2)
+     (1 1 1 1 1 1 1 1 2 2)
+     (1 1 1 1 1 1 1 2 2 2)
+     (1 1 1 1 1 1 2 2 2 2)
+     (1 1 1 1 1 2 2 2 2 2)
+     (1 1 1 1 2 2 2 2 2 2)
+     (1 1 1 2 2 2 2 2 2 2)
+     (1 1 2 2 2 2 2 2 2 2)
+     (1 2 2 2 2 2 2 2 2 2)
+     (2 2 2 2 2 2 2 2 2 2)
+     (2 2 2 2 2 2 2 2 2 3)
+     (2 2 2 2 2 2 2 2 3 3)
+     (2 2 2 2 2 2 2 3 3 3)
+     (2 2 2 2 2 2 3 3 3 3)
+     (2 2 2 2 2 3 3 3 3 3)
+     (2 2 2 2 3 3 3 3 3 3)
+     (2 2 2 3 3 3 3 3 3 3)
+     (2 2 3 3 3 3 3 3 3 3)
+     (2 3 3 3 3 3 3 3 3 3)
+     (3 3 3 3 3 3 3 3 3 3)")
 
   (test 18
+    ((for*/and ((k (in-range 1 100)) (n (in-range 1 10)))
+       (equal? (apply append (for/list ((r (in-list (ranges k n)))) (apply range r))) (range k))))
+    '(#t))
+
+  (test 19
+    ((DEFINE 1 2))
+    '()
+    #:error "DEFINE: not an identifier")
+
+  (test 20
+    ((DEFINE ((1)) 2))
+    '()
+    #:error  "DEFINE: not an identifier")
+
+  (test 21
     ((DEFINE-VALUES (a a) #f))
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
-  #;
+  ;#;
   (begin
     (DEFINE out-port (current-output-port))
-    (displayln "Test 19 lasts a minute. Do not interfere.")
-    (displayln "Test 20 passes only when you use the quit button to quit from the GUI.\n")
-
-    (test 19 ; This test takes a minute. Do not click in the GUI. If you want you can close the GUI.
-      ((displayln "Test 19 is running and takes a minute. Do not click in the GUI." out-port)
+    (displayln "Tests 22 and 23. Observe the instructions.\n")
+    
+    (test 22 ; This test takes a minute. Do not click in the GUI. If you want you can close the GUI.
+      ((displayln "Test 22 is running and takes a minute. Do not click in the GUI." out-port)
        (displayln "If you want you can close the GUI in the title bar.\n" out-port)
        (idle-limit 1)
        (tower-of-hanoi))
@@ -1620,9 +1679,10 @@
          Use parameter idle-limit to increase the allowed
          idle time or use the Idle limit button.")
 
-    (test 20 ; To pass this test button quit must be used close the GUI, possibly after other actions.
-      ((displayln "Test 20 is running. To pass this test button quit must be used" out-port)
-       (displayln "to close the GUI, possibly after other actions.\n" out-port)
+    (test 23 ; To pass this test button quit must be used close the GUI, possibly after other actions.
+      ((displayln "Test 23 is running." out-port)
+       (displayln "To pass this test button quit must be clicked within 10 minutes" out-port)
+       (displayln "in order to close the GUI, possibly after other actions.\n" out-port)
        (tower-of-hanoi))
       '()))
 
