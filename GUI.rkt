@@ -1245,31 +1245,36 @@
               (case SLC
                 ((C)
                  (format
-                   "Results for move ~a of path C with ~s disks\n~
-                   from peg ~s via peg ~s and peg ~s back to peg ~s.\n\n~
-                   Move disk ~s from peg ~s to peg ~s.\n\n~
-                   Resulting distribution of disks:\n~
-                   Positions of disks in order of increasing size:\n\n~a\n"
+                   "Results for move ~a of path C\n~
+                    with ~s disks\n~
+                    from peg ~s via peg ~s and peg ~s back to peg ~s.\n\n~
+                    Move disk ~s from peg ~s to peg ~s.\n\n~
+                    Resulting distribution of disks:\n~
+                    Positions of disks in order of increasing size:\n\n~a\n"
                    M h f t (- 3 f t) f d ff tt distr-str))
-                ((S L)
-                 (format
-                   "Results for move ~a with ~s disks of path ~a\n~
-                   from peg ~s to peg ~s.\n\n~
-                   Move disk ~s from peg ~s to peg ~s.\n\n~
-                   Resulting distribution of disks:\n~
-                   Positions of disks in order of increasing size:\n\n~a\n"
-                   M h SLC f t d ff tt distr-str))
                 ((c)
                  (format
-                   "Results for move ~a of path c with ~s disks\n~
-                   from peg ~s via peg ~s and peg ~s back to peg ~s.\n\n~
-                   Move disk ~s from peg ~s to peg ~s.\n"
+                   "Results for move ~a of path c\n~
+                    with ~s disks\n~
+                    from peg ~s via peg ~s and peg ~s back to peg ~s.\n\n~
+                    Move disk ~s from peg ~s to peg ~s.\n"
                    M h f t (- 3 f t) f d ff tt))
+                ((S L)
+                 (format
+                   "Results for move ~a of path ~a\n~
+                    with ~s disks of\n~
+                    from peg ~s to peg ~s.\n\n~
+                    Move disk ~s from peg ~s to peg ~s.\n\n~
+                    Resulting distribution of disks:\n~
+                    Positions of disks in order of increasing size:\n\n~a\n"
+                   M SLC h f t d ff tt distr-str))
                 ((s l)
                  (format
-                   "Results for move ~a of path ~a from peg ~s to peg ~s with ~s disks.\n\n~
-                   Move disk ~s from peg ~s to peg ~s.\n"
-                   M SLC f t h d ff tt)))
+                   "Results for move ~a of path ~a\n~
+                    with ~s disks\n~
+                    from peg ~s to peg ~s \n\n~
+                    Move disk ~s from peg ~s to peg ~s.\n"
+                   M SLC h f t d ff tt)))
               #f
               '(ok no-icon))))))))
 
@@ -1437,7 +1442,7 @@
 ; Follow the displayed instructions.
 
 ; Commented out?
-;#;
+#;
 (begin   (require test/test)
 
   (test 1
@@ -1607,7 +1612,7 @@
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
-  ;#;
+  #;
   (begin
     (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")
