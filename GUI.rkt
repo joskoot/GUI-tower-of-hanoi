@@ -1311,28 +1311,17 @@
 
 (define-syntax (posi// stx)
   (syntax-case stx ()
-    ((_ m h f t posi)
-     (with-syntax ((posi-call (syntax (posi m h d f t))))
-       (syntax (posi//help m h d f t posi-call))))
-    ((_ h (m f t posi))
-     (with-syntax ((posi-call (syntax (posi m   d f t))))
-       (syntax (posi//help m h d f t posi-call))))))
-
-(define-syntax (posi//help stx)
-  (syntax-case stx ()
-    ((_ m h d f t posi-call)
+    ((_ h posi)
      (syntax
        (cond
          ((<= h //limit) ; if n<=//limit, then parallelization is not worth the effort.
-          (for/list ((d (in-range h))) posi-call))
+          (for/list ((d (in-range h))) (posi d)))
          (else
            (DEFINE pool (make-parallel-thread-pool))
            (DEFINE threads
              (for/list ((r (in-list (ranges h))))
                (thread
-                 (λ ()
-                   (for/list ((d (in-range (car r) (cadr r))))
-                     posi-call))
+                 (λ () (for/list ((d (in-range (car r) (cadr r)))) (posi d)))
                  #:pool pool
                  #:keep 'results)))
            (set! running-threads threads)
@@ -1358,8 +1347,7 @@
     (disk m)
     (from m h f t)
     (onto m h f t)
-    (if distr? (posi// m h f t posi) '())
-    #;(for/list ((d (in-range h))) (posi m h d f t))))
+    (if distr? (posi// h (λ (d) (posi m h d f t))) '())))
 
 ;=====================================================================================================
 ; Action compute long.
@@ -1400,8 +1388,7 @@
     (disk m)
     (from m h f t)
     (onto m h f t)
-    (if distr? (posi// h (m f t posi)) '())
-    #;(for/list ((d (in-range h))) (posi m d f t))))
+    (if distr? (posi// h (λ (d) (posi m d f t))) '())))
 
 ;=====================================================================================================
 ; Action compute circular.
@@ -1442,7 +1429,7 @@
 ; Follow the displayed instructions.
 
 ; Commented out?
-#;
+;#;
 (begin   (require test/test)
 
   (test 1
@@ -1612,7 +1599,7 @@
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
-  #;
+  ;#;
   (begin
     (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")
