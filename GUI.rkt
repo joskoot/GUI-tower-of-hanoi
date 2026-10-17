@@ -1343,11 +1343,12 @@
   (DEFINE (from m h f t) (mod3 (+ (thrd m h f t) (rotd h (disk m) f t))))
   (DEFINE (posi m h d f t) (mod3 (+ f (* (rotd h d f t) (mcnt m d)))))
   (DEFINE (disk m) (sub1 (integer-length (bitwise-xor m (sub1 m)))))
+  (DEFINE (posi-d d) (posi m h d f t))
   (values
     (disk m)
     (from m h f t)
     (onto m h f t)
-    (if distr? (posi// h (λ (d) (posi m h d f t))) '())))
+    (if distr? (posi// h posi-d) '())))
 
 ;=====================================================================================================
 ; Action compute long.
@@ -1384,11 +1385,12 @@
     (+
       (mod3 (quotient m (exp3       d)))
       (* 2  (quotient m (exp3 (add1 d))))))
+  (define (posi-d d) (posi m d f t))
   (values
     (disk m)
     (from m h f t)
     (onto m h f t)
-    (if distr? (posi// h (λ (d) (posi m d f t))) '())))
+    (if distr? (posi// h posi-d) '())))
 
 ;=====================================================================================================
 ; Action compute circular.
