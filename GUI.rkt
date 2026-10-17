@@ -1429,7 +1429,7 @@
 ; Follow the displayed instructions.
 
 ; Commented out?
-;#;
+#;
 (begin   (require test/test)
 
   (test 1
@@ -1599,7 +1599,7 @@
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
   ; Commented out?
-  ;#;
+  #;
   (begin
     (DEFINE out-port (current-output-port))
     (displayln "Test 19 lasts a minute. Do not interfere.")
