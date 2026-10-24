@@ -11,7 +11,7 @@
 ;=====================================================================================================
 
 #lang racket/base
-
+(require (for-syntax racket/base))
 (provide tower-of-hanoi idle-limit)
 
 ;=====================================================================================================
@@ -55,7 +55,6 @@
     (range                            range                         )
     (~r                               ~r                            ))
   (for-syntax
-    racket/base
     (only-in racket/syntax                                             ; says  "1 bound occurrence"
       (generate-temporary             generate-temporary            )) ; says "no bound occurrences"
     (only-in syntax/transformer
@@ -71,6 +70,7 @@
 ; Other syntaxes whose names begin with the capitalized word 'DEFINE' produce immutable variables too.
 ; The value of an immutable variable can be mutable, for example a mutable vector or a structure with
 ; mutable fields. Syntaxes define and define-values produce mutable variables.
+;
 ; The phrase "immutable variable" sounds like a contradictio in terminis. (☺)
 
 (define-syntax (DEFINE stx)
@@ -195,15 +195,15 @@
 ; Variable last-compute is initialized but not reinitialized. The last command given to action compute
 ; is memorized and can be edited when clicking button 'compute' during subsequent calls.
 
-(define clock         'mutable) ; Possibly mutated more than once.
-(define delay         'mutable) ; Possibly mutated more than once.
-(define disk-distr    'mutable) ; Possibly mutated more than once.
-(define height        'mutable) ; Possibly mutated more than once.
-(define manual-count  'mutable) ; Possibly mutated more than once.
-(define move-count    'mutable) ; Possibly mutated more than once.
-(define str-msg       'mutable) ; Possibly mutated more than once.
+(define clock         'mutable) ; Can be mutated more than once.
+(define delay         'mutable) ; Can be mutated more than once.
+(define disk-distr    'mutable) ; Can be mutated more than once.
+(define height        'mutable) ; Can be mutated more than once.
+(define manual-count  'mutable) ; Can be mutated more than once.
+(define move-count    'mutable) ; Can be mutated more than once.
+(define str-msg       'mutable) ; Can be mutated more than once.
+(define last-compute  ""      ) ; Can be mutated more than once. Initialized here. Not reinitialized.
 (define allow-intro   'mutable) ; Mutated at most once after initialization or reinitialization.
-(define last-compute  ""      ) ; Initialized here. Not reinitialized by procedure initialize.
 (define escape        'delayed) ; Not mutated after initialization or reinitialization.
 (define top-custodian 'delayed) ; Not mutated after initialization or reinitialization.
 (define viewport      'delayed) ; Not mutated after initialization or reinitialization.
@@ -224,7 +224,7 @@
   (set! str-msg                     "")
   (set! top-custodian (make-custodian))
   ; Open graphics and the viewport. This must be done before the contents of the buttons are
-  ; initialized or reinitialized because the buttons eill draw their contents.
+  ; initialized or reinitialized because the buttons will draw their contents.
   (open-graphics)
   (set! viewport (open-viewport "Tower of Hanoi" vp-width vp-height))
   ; Draw the buttons. The contents of buttons with content are not yet drawn.
@@ -381,9 +381,11 @@
 
 (struct button1 ((enabled? #:mutable) region pos name) ; Without content.
   #:property prop:procedure proc-button1
+  #:omit-define-syntaxes
   #:constructor-name make-button1)
 
-(struct button2 button1 ((content #:mutable))          ; With content.
+(struct button2 ((content #:mutable))                  ; With content.
+  #:super struct:button1
   #:property prop:procedure proc-button2
   #:omit-define-syntaxes
   #:constructor-name make-button2)
@@ -681,7 +683,7 @@
         (else
           (button-cancel 'disable)                ; Something else than a peg selected.
           (draw-disk d h from-peg)                ; Unmark the selected disk and
-          (dispatch pos))))))                     ; dispatch the mouse-click
+          (dispatch pos))))))                     ; dispatch the mouse-click.
 
 (DEFINE (action-manual2 d h from-peg to-peg)
   (cond
@@ -696,7 +698,7 @@
          (draw-disk d (length dest-peg-list-of-disks) to-peg)
          (increment-manual-count))
         (else                            ; The move is not allowed. Unmark the
-          (draw-disk d h from-peg)))))   ; selected disk and ignore the mouse-click
+          (draw-disk d h from-peg)))))   ; selected disk and ignore the mouse-click.
   (button-cancel 'disable))
 
 (DEFINE (size-of-top-disk p)             ; In fact the disk ordinal is returned, not its size.
@@ -1121,11 +1123,11 @@
 
 (define-values (SLC h M m f t running-threads) (values #f #f #f #f #f #f '()))
 
-(define-syntax (accept-cancel stx)
+(define-syntax (accept-cancel/quit stx)
   (syntax-case stx ()
-    ((_ expr) (syntax (accept-cancel-thunk (λ () expr))))))
+    ((_ expr) (syntax (accept-cancel/quit-thunk (λ () expr))))))
 
-(DEFINE (accept-cancel-thunk thunk)
+(DEFINE (accept-cancel/quit-thunk thunk)
   (DEFINE result-box (box #f))
   (DEFINE custodian (make-custodian top-custodian))
   (DEFINE task
@@ -1137,14 +1139,18 @@
     (DEFINE results (unbox result-box))
     (cond
       ((unbox result-box))
-      ((and click (button-cancel 'in-button? (mouse-click-posn click)))
-       (for-each kill-thread running-threads)
-       (kill-thread task)
-       (custodian-shutdown-all custodian)
-       #f)
-      (else (loop)))))
+      (else
+        (cond
+          (click
+            (dispatch-button (mouse-click-posn click)
+              (button-cancel
+                (for-each kill-thread running-threads)
+                (kill-thread task)
+                (custodian-shutdown-all custodian)
+                #f)
+              (button-quit (escape))))
+          (else (loop)))))))
 
-(DEFINE buttons-for-action-compute (remove button-cancel all-buttons))
 (DEFINE namespace (make-base-namespace))
 (DEFINE (catch-exn-for-compute e) (set! SLC 'wrong))
 (DEFINE nr-of-disks-per-line 50)
@@ -1206,7 +1212,7 @@
   (when answer (set! allow-intro #f))
   (when (eq? ok 'ok) (compute-help #t))
   (set! running-threads '())
-  (enable/disable-buttons buttons-for-action-compute 'enable)
+  (enable/disable-buttons all-buttons 'enable)
   (button-cancel 'disable)
   (set!-values (SLC h M m f t) (values '#f #f #f #f #f #f)))
 
@@ -1229,10 +1235,11 @@
       (else
         (DEFINE c-str (string-append "Computing: " str))
         (draw-compute-warning c-str)
+        (enable/disable-buttons all-buttons 'disable)
         (button-cancel 'enable)
-        (enable/disable-buttons buttons-for-action-compute 'disable)
+        (button-quit   'enable)
         (DEFINE result
-          (accept-cancel
+          (accept-cancel/quit
             ((case SLC
                ((S s) compute-short   )
                ((L l) compute-long    )
@@ -1436,14 +1443,16 @@
         ((< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
 
 ;=====================================================================================================
-; Some tests. The GUI itself can only be tested by playing with it. If you don't have it yet,
-; install "https://github.com/joskoot/test.git" before testing. The tests are commented out at
-; two places marked with "; Commented out?". The last test (23) requires action of the user.
-; Follow the displayed instructions.
+; Some tests. The GUI itself can only be tested by playing with it. If you don't have it yet, install
+; "https://github.com/joskoot/test.git" before testing. The tests are commented out at  two places
+; marked with "; Commented out?". The last two tests (23 and 24) require action of the user. Follow
+; the displayed instructions. The tests work for DrRacket, version 9.3 [cs]. When switching to another
+; version of DrRacket, some of the expected error messages may need adaptation.
 
-; Commented out?
+; Commented out? : Remove #; or replace it by ;#; to include the tests.
 #;
-(begin   (require test/test)
+(begin
+  (require test/test)
 
   (test 1
     ((DEFINE a 1)
@@ -1660,11 +1669,11 @@
     ((DEFINE-VALUES (a a) #f))
     '()
     #:error "DEFINE-VALUES: duplicate identifier")
-  ; Commented out?
+  ; Commented out? : Remove #; or replace it by ;#; to include the tests.
   #;
   (begin
     (DEFINE out-port (current-output-port))
-    (displayln "Tests 22 and 23. Observe the instructions.\n")
+    (displayln "Tests 22, 23 and 24. Observe the instructions.\n")
     
     (test 22 ; This test takes a minute. Do not click in the GUI. If you want you can close the GUI.
       ((displayln "Test 22 is running and takes a minute. Do not click in the GUI." out-port)
@@ -1679,12 +1688,19 @@
          Use parameter idle-limit to increase the allowed
          idle time or use the Idle limit button.")
 
-    (test 23 ; To pass this test button quit must be used close the GUI, possibly after other actions.
+    (test 23 ; To pass this test button quit must be clicked in order to close the GUI.
       ((displayln "Test 23 is running." out-port)
        (displayln "To pass this test button quit must be clicked within 10 minutes" out-port)
        (displayln "in order to close the GUI, possibly after other actions.\n" out-port)
        (tower-of-hanoi))
-      '()))
+      '())
+      
+    (test 24 ; To pass this test button the GUI must be halted by a break.
+      ((displayln "Test 24 is running." out-port)
+       (displayln "To pass this test the GUI must be halted by a break\n" out-port)
+       (tower-of-hanoi))
+      '()
+      #:error "break"))
 
   (test-report))
 
