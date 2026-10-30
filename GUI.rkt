@@ -1282,28 +1282,13 @@
   (define (thrd m   f t) (if (odd? m) t f))
   (define (onto m h f t) (posi m (disk m) f t))
   (define (from m h f t) (- 3 (onto m h f t) (thrd m f t)))
-  (define (disk m) ; Can yield wrong answer for very large m.
-    (let*
-      ((log3 (inexact->exact (log 3)))
-       (first-guess (ceiling (/ (inexact->exact (log m)) log3)))
-       (upper-bound (expt 3 first-guess))
-       (lowest-power-3 (gcd m upper-bound)))
-      (inexact->exact (round (/ (log lowest-power-3) log3)))))
-  ;#(define (disk m) (if (zero? (mod3 m)) (add1 (disk (quotient m 3))) 0))
+  (define (disk m) (if (zero? (mod3 m)) (add1 (disk (quotient m 3))) 0))
   (define (posi m d f t)
     (case (mod4 (mcnt m d))
       ((0) f)
       ((1 3) (- 3 f t))
       ((2) t)))
-  ; Alas, with a large number of disks (exp3 d) and (exp3 (add1 d)) become expensive with growing
-  ; value of d (up to (expt 3 h)). As in principle d traverses the range 0..(expt 3 h) in strict
-  ; increasing order, one would think that memorizing the last computed (exp3 (add1 d)) would speed up
-  ; but as procedure mcnt may be called in parallel threads, there is little chance it is called with
-  ; strict increasing order of d. Within each thread procedure mcnt is called with strict increasing
-  ; order of d. Memorizing (exp3 (add1 d)) would require every thread to have its own definition of
-  ; parts of procedure compute-long, which would be expensive too and is rather complicated. Therefore
-  ; no attempt to avoid exponentiation of the same d twice.
-  (define (mcnt m d)
+    (define (mcnt m d)
     (+
       (mod3 (quotient m (exp3       d)))
       (* 2  (quotient m (exp3 (add1 d))))))
