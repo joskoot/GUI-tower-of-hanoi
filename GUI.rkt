@@ -10,15 +10,57 @@
 ;
 ;=====================================================================================================
 
-#lang racket
+#lang racket/base
 
 (provide
   tower-of-hanoi
   idle-limit)
 
 (require
-  graphics/graphics
-  racket/gui/base)
+  (only-in graphics/graphics
+    clear-solid-rectangle
+    clear-string
+    close-graphics
+    draw-rectangle
+    draw-solid-rectangle
+    draw-string
+    get-mouse-click
+    get-string-size
+    make-posn
+    make-rgb
+    mouse-click-posn
+    open-graphics
+    open-pixmap
+    open-viewport
+    posn-x
+    posn-y
+    ready-mouse-click
+    viewport-flush-input)
+  (only-in racket/gui/base
+    current-eventspace
+    get-choices-from-user
+    get-text-from-user
+    make-eventspace
+    message-box
+    message-box/custom
+    message+check-box)
+  (only-in racket
+    curry
+    infinite?
+    make-list
+    processor-count
+    range
+    ~r)
+  (for-syntax
+    (only-in racket/base
+      syntax
+      syntax-case)))
+
+;=====================================================================================================
+
+(define-syntax-rule
+  (in-reversed-range n)
+  (in-range (sub1 n) -1 -1))
 
 ;=====================================================================================================
 ; Define values with in addition a list of these values.
@@ -45,12 +87,6 @@
             (values next-val (cons next-val vals))))))))
 
 ;=====================================================================================================
-
-(define-syntax-rule
-  (in-reversed-range n)
-  (in-range (sub1 n) -1 -1))
-
-;=====================================================================================================
 ; Main procedure.
 
 (define (tower-of-hanoi)
@@ -71,12 +107,11 @@
 (define (close)
   ; In order to make a user break work properly when running the program in the definitions or
   ; interactions window of DrRacket, some care is required for termination of threads made by action
-  ; compute. Both the line with 'kill-thread' and that with 'custodian-shutdown-all' are required and
-  ; in that order. Without this precaution DrRacket won't halt, although using less than 1% of CPU.
-  ; It paralyzes and will not respond to any mouse-click or keystroke. You would have to order the
-  ; operating system to close DrRacket. The problem does not occur when running the tower-of-hanoi
-  ; with Racket. I have observed this under Windows. I don't know what happens with other operating
-  ; systems. 
+  ; compute. Both the line with kill-thread and that with custodian-shutdown-all are required and in
+  ; that order. Without this precaution DrRacket won't halt. It paralyzes and will not respond to any
+  ; mouse-click or keystroke. You would have to order the operating system to close DrRacket. The
+  ; problem does not occur when running the tower-of-hanoi with Racket. I have observed this under
+  ; Windows. I don't know what happens with other operating systems. 
   (for-each kill-thread running-threads)
   (custodian-shutdown-all top-custodian)
   (close-graphics)) ; Closes the viewport too.
@@ -95,7 +130,7 @@
 (define str-msg       'mutable)
 (define allow-intro   'mutable) ; Mutated at most once after initialization or reinitialization.
 
-; Variable last-compute can be mutated while playing. It is initialized but not reinitialized.
+; Variable last-compute is can be mutated while playing. It is initialized but not reinitialized.
 ; The last command given to action compute is memorized and can be edited when clicking button
 ; 'compute' during subsequent calls.
 
@@ -163,6 +198,7 @@
           (raise-user-error '|Parameter idle-limit|
             "\n  Exact positive integer ~s<=time<=~s wanted.\n  Given ~s"
             min-idle-minutes max-idle-minutes minutes))))
+
     'parameter-idle-limit))
 
 ;=====================================================================================================
@@ -170,9 +206,9 @@
 
 (define-syntax (time-out stx)
   (syntax-case stx ()
-    ((_ #f expr ...) (syntax (time-out-proc #f (λ () expr ...))))
-    ((_ #t expr ...) (syntax (time-out-proc #t (λ () expr ...))))
-    ((_    expr ...) (syntax (time-out-proc #f (λ () expr ...))))))
+    ((_ #f expr ...) #'(time-out-proc #f (λ () expr ...)))
+    ((_ #t expr ...) #'(time-out-proc #t (λ () expr ...)))
+    ((_    expr ...) #'(time-out-proc #f (λ () expr ...)))))
 
 (define not-finished (string->uninterned-symbol "not-finished"))
 
@@ -317,16 +353,16 @@
 (define-syntax (dispatch-button stx)
   (syntax-case stx (else)
     ((_ pos (button action ...) ... (else else-action ...))
-     (syntax
-       (let ((p pos))
-         (cond
-           ((button 'in-button? p) action ...) ...
-           (else else-action ...)))))
+     #'
+     (let ((p pos))
+       (cond
+         ((button 'in-button? p) action ...) ...
+         (else else-action ...))))
     ((_ pos (button action ...) ...)
-     (syntax
-       (let ((p pos))
-         (cond
-           ((button 'in-button? p) action ...) ...))))))
+     #'
+     (let ((p pos))
+       (cond
+         ((button 'in-button? p) action ...) ...)))))
 
 (define (dispatch pos)
   (dispatch-button pos
@@ -1029,7 +1065,7 @@
 
 (define-syntax (accept-cancel/quit stx)
   (syntax-case stx ()
-    ((_ expr) (syntax (accept-cancel/quit-thunk (λ () expr))))))
+    ((_ expr) #'(accept-cancel/quit-thunk (λ () expr)))))
 
 (define (accept-cancel/quit-thunk thunk)
   (define result-box (box #f))
@@ -1205,13 +1241,15 @@
 
 (define (draw-compute-warning str)
   ((draw-string viewport) posn-warn1 str           black)
-  ((draw-string viewport) posn-warn2 compute-warn2 red  )
-  ((draw-string viewport) posn-warn3 compute-warn3 red  ))
+  (when (member SLC '(S L C))
+    ((draw-string viewport) posn-warn2 compute-warn2 red  )
+    ((draw-string viewport) posn-warn3 compute-warn3 red  )))
 
 (define (clear-compute-warning str)
   ((clear-string viewport) posn-warn1 str)
-  ((clear-string viewport) posn-warn2 compute-warn2)
-  ((clear-string viewport) posn-warn3 compute-warn3))
+  (when (member SLC '(S L C))
+    ((clear-string viewport) posn-warn2 compute-warn2)
+    ((clear-string viewport) posn-warn3 compute-warn3)))
 
 ;=====================================================================================================
 ; Parallelization of the computation of distribution of disks by action-compute.
@@ -1234,20 +1272,18 @@
 (define-syntax (posi// stx)
   (syntax-case stx ()
     ((_ h posi)
-     (syntax
-       (cond
-         ((<= h //limit) ; if n<=//limit, then parallelization is not worth the effort.
-          (for/list ((d (in-range h))) (posi d)))
-         (else
-           (define pool (make-parallel-thread-pool))
-           (define threads
-             (for/list ((r (in-list (ranges h))))
-               (thread
-                 (λ () (for/list ((d (in-range (car r) (cadr r)))) (posi d)))
-                 #:pool pool
-                 #:keep 'results)))
-           (set! running-threads threads)
-           (apply append (map thread-wait threads))))))))
+     #'
+     (cond
+       ((<= h //limit) ; if n<=//limit, then parallelization is not worth the effort.
+        (for/list ((d (in-range h))) (posi d)))
+       (else
+         (define pool (make-parallel-thread-pool))
+         (define (make-thread thunk) (thread #:pool pool #:keep 'results thunk))
+         (define thunks
+           (for/list ((r (in-list (ranges h))))
+             (λ () (for/list ((d (in-range (car r) (cadr r)))) (posi d)))))
+         (set! running-threads (map make-thread thunks))
+         (apply append (map thread-wait running-threads)))))))
 
 ;=====================================================================================================
 ; Action compute short.
@@ -1288,7 +1324,7 @@
       ((0) f)
       ((1 3) (- 3 f t))
       ((2) t)))
-    (define (mcnt m d)
+  (define (mcnt m d)
     (+
       (mod3 (quotient m (exp3       d)))
       (* 2  (quotient m (exp3 (add1 d))))))
