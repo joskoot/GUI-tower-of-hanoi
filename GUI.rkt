@@ -213,9 +213,7 @@
 (define not-finished (string->uninterned-symbol "not-finished"))
 
 (define (time-out-proc dialog? thunk)
-  (when dialog?
-    ((draw-string viewport) posn-warn1 str-warn1 red)
-    ((draw-string viewport) posn-warn2 str-warn2 red))
+  (when dialog? (draw-warn1/warn2))
   (define result-box (box not-finished))
   (define custodian (make-custodian top-custodian))
   (define (handle-thread thread)
@@ -227,9 +225,7 @@
       ((eq? result not-finished)              ; Maximum idle time exceeded. Abort.
        (time-out-abort))
       (else                                   ; Answer received within maximum idle time.
-        (when dialog?                         ; Clear warning when applicable.
-          ((clear-string viewport) posn-warn1 str-warn1)
-          ((clear-string viewport) posn-warn2 str-warn2))
+        (when dialog? (clear-warn1/warn2))    ; Clear warning when applicable.
         (apply values result))))              ; Return the result, possibly a multiple value.
   (parameterize
     ((current-eventspace (make-eventspace))
@@ -247,8 +243,6 @@
        Use parameter idle-limit to increase the allowed\n  ~
        idle time or use the Idle limit button.\n\n"
     (if (= limit 1) "1 minute" (format "~s minutes" limit)))
-  (for-each kill-thread running-threads)
-  (custodian-shutdown-all top-custodian)
   (escape))
 
 ;=====================================================================================================
@@ -279,6 +273,14 @@
 (define red              (make-rgb 1.00 0.00 0.00)                 )
 (define green            (make-rgb 0.00 0.80 0.00)                 )
 (define blue             (make-rgb 00.0 0.00 1.00)                 )
+
+(define (draw-warn1/warn2)
+  ((draw-string viewport) posn-warn1 str-warn1 red)
+  ((draw-string viewport) posn-warn2 str-warn2 red))
+
+(define (clear-warn1/warn2)
+  ((clear-string viewport) posn-warn1 str-warn1)
+  ((clear-string viewport) posn-warn2 str-warn2))
 
 (define-values-with-list-of-values button-names
   (str-height     " Height "    )
@@ -742,12 +744,7 @@
   (let/cc cc
     ; The exit allows procedure move-disk to stop from the action.
     (define (exit) (clear-msg) (cc))
-    (define distr
-      (for*/list
-        ((d (in-reversed-range height))
-         (p (in-range 3))
-         #:when (member d (vector-ref disk-distr p)))
-        p))
+    (define distr (make-distr))
     (define (short distr dest)
       (cond
         ((null? distr))
@@ -759,6 +756,13 @@
           (short (make-list (length (cdr distr)) new-dest) dest))))
     (short distr 2)))
 
+(define (make-distr)
+  (for*/list
+    ((d (in-reversed-range height))
+     (p (in-range 3))
+     #:when (member d (vector-ref disk-distr p)))
+    p))
+
 ;=====================================================================================================
 ; Action long mode.
 
@@ -768,12 +772,7 @@
   (let/cc cc
     ; The exit allows procedure move-disk to stop the action.
     (define (exit) (clear-msg) (cc))
-    (define p-list
-      (for*/list
-        ((d (in-reversed-range height))
-         (p (in-range 3))
-         #:when (member d (vector-ref disk-distr p)))
-        p))
+    (define p-list (make-distr))
     (define (long conf dest)
       (cond
         ((null? conf))
@@ -1027,6 +1026,7 @@
       (button-peg1   (action-setup2 d 1) (action-setup1 (cdr disks)))
       (button-peg2   (action-setup2 d 2) (action-setup1 (cdr disks)))
       (button-reset  (clear-msg        ) (action-reset             ))
+      (button-cancel (clear-msg        ) (action-reset             ))
       (button-quit   (action-quit      ) (action-setup1 (cdr disks)))
       (else
         (define p (dispatch-peg pos))
@@ -1158,7 +1158,7 @@
                  For mode S: (<= 1 move (sub1 (expt 2 h)))\n  ~
                  For mode L: (<= 1 move (sub1 (expt 3 h)))\n  ~
                  For mode C: (<= 1 move (expt 3 h))")
-            " Do not show this message next time."
+            " Next time omit this message."
             #f
             '(ok-cancel no-icon))))
       (else (values 'ok #f))))
@@ -1299,6 +1299,7 @@
            (for/list ((r (in-list (ranges h))))
              (λ () (for/list ((d (in-range (car r) (cadr r)))) (posi d)))))
          (set! running-threads (map make-thread thunks))
+         (parallel-thread-pool-close pool)
          (apply append (map thread-wait running-threads)))))))
 
 ;=====================================================================================================
@@ -1378,12 +1379,12 @@
       ; Shift M relative to the second move of the largest disk such that m=0 for this move.
       (define m (modulo (+ M <3^<h-1>-1>/2) 3^h))
       (cond
-        ((zero? m)                 (mover  h-1 r f t))
-        ((< m 3^<h-1>)             (long m h-1 t r f))
-        ((= m 3^<h-1>)             (mover  h-1 f t r))
-        ((< m (+ 3^<h-1> 3^<h-1>)) (long m h-1 r f t))
-        ((= m (+ (* 2 3^<h-1>)))   (mover  h-1 t r f))
-        ((< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
+        ((zero? m)                        (mover  h-1 r f t))
+        ((< m 3^<h-1>)                    (long m h-1 t r f))
+        ((= m 3^<h-1>)                    (mover  h-1 f t r))
+        ((< m (+ 3^<h-1> 3^<h-1>))        (long m h-1 r f t))
+        ((= m (+ (* 2 3^<h-1>)))          (mover  h-1 t r f))
+        (else #;(< m (+ (* 3 3^<h-1>) 2)) (long m h-1 f t r))))))
 
 ;=====================================================================================================
 ; Some tests. The GUI itself can only be tested by playing with it. If you don't have it yet, install
