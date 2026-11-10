@@ -296,11 +296,8 @@ After this move all 100000 disks are at peg 2. Not all of the resulting@(lb)
 distribution of disks is visible but can be seen by scrolling down.
 
 @note{The computation of the resulting distribution of disks is parallelized
- by means of threads. @nb{On my computer} with 6 cores and 12 logical processors
- running at almost 5 GHz the above command takes about 2 minutes.
- Most of the time is spent on calculating exponents of 3 up to 3@superscript{100000}
- involving numbers of order of magnitude up to @(format "~s" (order-of-magnitude (expt 3 100000)))
- (almost 20kB of memory).}
+ by means of threads. @nb{On my computer} with 6 cores, each core having 2 logical processors,
+ and running at almost 5 GHz the above command takes about 2 minutes.}
 
 @section[#:style '(unnumbered)]{Appendix}
 
