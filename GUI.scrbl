@@ -56,7 +56,7 @@
 @section[#:style '(unnumbered)]{Introduction}
 
 The @hyperlink["https://en.wikipedia.org/wiki/Tower_of_Hanoi"]{Tower of Hanoi} is a game.
-It has 3 pegs, one at the left, one in the middle and one at the right.
+It has three vertical pegs, one at the left, one in the middle and one at the right.
 It has a number of disks.
 The disks have different diameters and a hole in the center.
 They are put at the pegs.
@@ -304,6 +304,29 @@ distribution of disks is visible but can be seen by scrolling down.
 
 @section[#:style '(unnumbered)]{Appendix}
 
+@subsection{Basic observations.}
+
+Let @tt{h} be the number of disks. Number the disks from 0 up to but not including @tt{h}
+in order of increasing diameter. The largest disk @tt{h@(minus)1} can be moved only when all other
+disks are at the remaining third peg.
+
+In order to move all smaller disks to the remaining third peg,
+the same observation applies to these disks because
+the presence of largest disk @tt{h@(minus)1} does not impede any move of the other disks
+and its presence can be ignored.
+Hence the problem of moving @tt{h} disks can be reduced to moving @tt{h@(minus)1} disks,
+the case @tt{h=1} being trivial.
+
+These two observations easily lead to a recursive solution with the least number of moves.
+Let @tt{a(h)} be this number of moves. We have the trivial base case @tt{a(1)=1}. Furthermore
+@tt{a(h+1)=2a(h)+1} which implies @tt{a(h)=2@↑{h}@(minus)1}.
+This solution is unique, all other solutions requiring more moves.
+
+The recursive method requires passing along all preceding moves when calculating which disk goes
+from which peg to which peg during move @tt{m} and which distribution of disks among the pegs this
+move produces. However, this computation can also be made without dependence on previous moves
+or a solution with less disks. See section @elemref["non-recursive"]{Non recursive formulas}.
+
 @subsection{Graphical representation}
 
 Let @tt{h} be the number of disks.
@@ -369,6 +392,7 @@ is a(n) with @nb{a(0)=1} and
 This is a very fast increasing sequence.
 See @hyperlink["https://oeis.org/A125295"]{A125295} of @hyperlink["https://oeis.org/"]{OEIS}.
 
+@elemtag["non-recursive"]
 @subsection{Non recursive formulas}
 
 Regarding elementary arithmetic operations as non-recursive,

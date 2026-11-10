@@ -59,7 +59,7 @@
       syntax-case)))
 
 ;=====================================================================================================
-; Define values with in addition a list of these values.
+; Macro to define values with in addition a list of these values.
 
 (define-syntax-rule
   (define-values-with-list-of-values the-list (var value) ...)
@@ -68,8 +68,8 @@
     (define the-list (list var ...))))
 
 ;=====================================================================================================
-; Defines values accumulatively, each one, the first one excepted, made from the previous one by a
-; make-next procedure. Procedure make-next is not applied to the last value.
+; Macro to define values accumulatively, each one, the first one excepted, made from the previous one
+; by a make-next procedure. Procedure make-next is not applied to the last value.
 
 (define-syntax-rule
   (define-values-accumulative (id ... last-id) first make-next)
@@ -86,7 +86,7 @@
 
 (define-syntax-rule
   (in-reversed-range n)
-  (in-range (sub1 n) -1 -1))
+  (range (sub1 n) -1 -1))
 
 ;=====================================================================================================
 ; Main procedure.
@@ -139,9 +139,9 @@
 (define last-compute  ""      ) ; Initialized here, not reinitialized.
 
 ; Variables escape, viewport and top-custodian are not mutated again after they have been initialized
-; or reinitialized. The viewport cannot yet be assigned because this needs graphics to be open.
-; Graphics is opened by procedure initialize which also will open and assign the viewport. The
-; top-custodian is shut down during termination. A shut down custodian can no longer be used.
+; or reinitialized. The viewport can not yet be assigned because this needs graphics to be open.
+; Graphics is opened by procedure initialize which also will open and assign the viewport.
+; The top-custodian is shut down during termination. A shut down custodian can no longer be used.
 ; Therefore the top-custodian must be reinitialized too.
 
 (define escape        'delayed)
@@ -154,14 +154,14 @@
 
 (define (initialize cc)
   ; Initialize or reinitialize the internal state.
-  (set! allow-intro                 #t)
-  (set! clock                        0)
-  (set! delay                    click)
-  (set! escape                      cc)
-  (set! height              max-height)
-  (set! manual-count                 0)
-  (set! move-count                   0)
-  (set! str-msg                     "")
+  (set! allow-intro    #t             )
+  (set! clock          0              )
+  (set! delay          click          )
+  (set! escape         cc             )
+  (set! height         max-height     )
+  (set! manual-count   0              )
+  (set! move-count     0              )
+  (set! str-msg        ""             )
   (set! top-custodian (make-custodian))
   ; Open graphics and the viewport.
   (open-graphics)
@@ -423,7 +423,7 @@
 ; Procedures drawing pegs, disks and the girder.
 
 (define (draw-pegs)
-  (for ((p (in-range 3)))
+  (for ((p (range 3)))
     ((draw-solid-rectangle viewport)
      (make-posn (peg-x p) peg-y)
      peg-width peg-height green)))
@@ -460,7 +460,7 @@
 
 (define (draw-girder)
   ((draw-solid-rectangle viewport) posn-girder (- vp-width (* 2 border)) base-size gray)
-  (for ((p (in-range 0 3)))
+  (for ((p (range 0 3)))
     (define str (format "Peg ~s" p))
     (define size (car ((get-string-size viewport) str)))
     ((draw-string viewport)
@@ -523,11 +523,11 @@
   (make-posn border border)
   (λ (pos) (posn-add pos button-w+b 0)))
 
-(define posn-msg (posn-add  posn-idle button-w+b (- (* 2  button-hght) str-offset))           )
-(define posn-warn1    (posn-add  posn-compute button-w+b (- (+ button-hght  str-offset) base-size)))
-(define posn-warn2    (posn-add  posn-warn1 0 base-size)                                           )
-(define posn-warn3    (posn-add  posn-warn2 0 base-size)                                           )
-(define posn-girder   (make-posn border (- vp-height border base-size))                            )
+(define posn-msg    (posn-add  posn-idle button-w+b (- (* 2  button-hght) str-offset))           )
+(define posn-warn1  (posn-add  posn-compute button-w+b (- (+ button-hght  str-offset) base-size)))
+(define posn-warn2  (posn-add  posn-warn1 0 base-size)                                           )
+(define posn-warn3  (posn-add  posn-warn2 0 base-size)                                           )
+(define posn-girder (make-posn border (- vp-height border base-size))                            )
 
 ;=====================================================================================================
 ; A region records the position and dimensions of objects whose clicks must be dispatched.
@@ -554,7 +554,7 @@
            (- vp-height border base-size peg-height)))
        (regions '())
        #:result regions)
-      ((n (in-range 3)))
+      ((n (range 3)))
       (values
         (posn-add pos (+ max-disk-width border) 0)
         (cons (make-region pos max-disk-width peg-height) regions)))))
@@ -580,7 +580,7 @@
 
 ;=====================================================================================================
 ; When validating a modal dialog that returns a string, data must be read from the string, possibly
-; followed by some computation. We don't want the GUI to crash when the user provides wrong or even
+; followed by evaluation. We don't want the GUI to crash when the user provides wrong or even
 ; unreadable data. The validator simply must reject the answer given by the user. Therefore the
 ; following handler.
 
@@ -759,7 +759,7 @@
 (define (make-distr)
   (for*/list
     ((d (in-reversed-range height))
-     (p (in-range 3))
+     (p (range 3))
      #:when (member d (vector-ref disk-distr p)))
     p))
 
@@ -995,7 +995,7 @@
   (set! disk-distr (vector (range height) '() '()))
   (remove-all-disks)
   (reset-manual-count)
-  (for ((d (in-range height)) (h (in-reversed-range height))) (draw-disk d h 0)))
+  (for ((d (range height)) (h (in-reversed-range height))) (draw-disk d h 0)))
 
 ;=====================================================================================================
 ; Action setup.
@@ -1207,7 +1207,7 @@
               (apply string-append
                 (for/fold
                   ((result '()) #:result (reverse result))
-                  ((p (in-list distr)) (n (in-cycle (in-range 0 nr-of-disks-per-line))))
+                  ((p (in-list distr)) (n (in-cycle (range 0 nr-of-disks-per-line))))
                   (if (= n nr-of-disks-per-line-1)
                     (cons "\n" (cons (format "~s" p) result))
                     (cons (format "~s" p) result))))
@@ -1291,13 +1291,13 @@
      #'
      (cond
        ((<= h //limit) ; if n<=//limit, then parallelization is not worth the effort.
-        (for/list ((d (in-range h))) (posi d)))
+        (for/list ((d (range h))) (posi d)))
        (else
          (define pool (make-parallel-thread-pool))
          (define (make-thread thunk) (thread #:pool pool #:keep 'results thunk))
          (define thunks
            (for/list ((r (in-list (ranges h))))
-             (λ () (for/list ((d (in-range (car r) (cadr r)))) (posi d)))))
+             (λ () (for/list ((d (range (car r) (cadr r)))) (posi d)))))
          (set! running-threads (map make-thread thunks))
          (parallel-thread-pool-close pool)
          (apply append (map thread-wait running-threads)))))))
@@ -1335,9 +1335,10 @@
   (define (thrd m   f t) (if (odd? m) t f))
   (define (onto m h f t) (posi m (disk m) f t))
   (define (from m h f t) (- 3 (onto m h f t) (thrd m f t)))
-  (define (disk m)
+  (define (disk-help m d)
     (define-values (q r) (quotient/remainder m 3))
-    (if (zero? r) (add1 (disk q)) 0))
+    (if (zero? r) (disk-help q (add1 d)) d))
+  (define (disk m) (disk-help m 0))
   (define (posi m d f t)
     (case (mod4 (mcnt m d))
       ((0) f)
@@ -1437,7 +1438,7 @@
 
   (test 8
     ((define h 3)
-     (for/list ((m (in-range 1 (expt 2 h))))
+     (for/list ((m (range 1 (expt 2 h))))
        (call-with-values (λ () (compute-short h m 0 1 #t)) (λ x (cons m x)))))
     '(((1 0 0 1 (1 0 0))
        (2 1 0 2 (1 2 0))
@@ -1449,7 +1450,7 @@
 
   (test 9
     ((define h 3)
-     (for/list ((m (in-range 1 (expt 3 h))))
+     (for/list ((m (range 1 (expt 3 h))))
        (call-with-values (λ () (compute-long h m 0 1 #t)) (λ x (cons m x)))))
     '((( 1 0 0 2 (2 0 0))
        ( 2 0 2 1 (1 0 0))
@@ -1480,7 +1481,7 @@
 
   (test 10
     ((define h 3)
-     (for/list ((m (in-range 1 (add1 (expt 3 h)))))
+     (for/list ((m (range 1 (add1 (expt 3 h)))))
        (call-with-values (λ () (compute-circular 3 m 0 1 #t)) (λ x (cons m x)))))
     '((( 1 0 0 1 (1 0 0))
        ( 2 1 0 2 (1 2 0))
@@ -1511,7 +1512,7 @@
        (27 0 2 0 (0 0 0)))))
 
   (test 11
-    ((for/list ((n (in-range 100 111))) (distribute n 10)))
+    ((for/list ((n (range 100 111))) (distribute n 10)))
     '(((10 10 10 10 10 10 10 10 10 10)
        (10 10 10 10 10 10 10 10 10 11)
        (10 10 10 10 10 10 10 10 11 11)
